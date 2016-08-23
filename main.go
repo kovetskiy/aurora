@@ -1,13 +1,22 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/godocs"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
-	"github.com/seletskiy/hierr"
+	"github.com/reconquest/faces"
+	"github.com/reconquest/lexec-go"
+	"github.com/reconquest/ser-go"
+	"github.com/reconquest/threadpool-go"
 )
 
 var (
@@ -24,21 +33,28 @@ Options:
   -L --listen <address>  Listen specified address [default: :80].
   -A --add <package>     Add specified package to watch and compile cycle queue.
   -R --remove <package>  Remove specified package from watch and compile cycle queue.
-  -Q --queue             Process watch and compile cycle queue.
-  -t --threads <n>       Specify amount of threads that should be used.
-  -d --database <path>   Specify path to aurora database [default: /var/lib/aurora/].
+  -P --process           Process watch and compile cycle queue.
+  -i --interface <link>  Specify host network interface for using in containers.
+                          [default: eth0]
+  -t --threads <n>       Specify amount of threads that can be used. [default: 4]
+  -r --root <path>       Specify path to aurora root directory [default: /var/lib/aurora/].
+  -f --files <path>      Specify container configuration files root directory
+                          [default: /etc/aurora/conf.d/]
+  -s --filesystem <fs>   Specify filesystem to use [default: autodetect].
+  --debug                Show debug messages.
+  --trace                Show trace messages.
   -h --help              Show this screen.
   --version              Show version.
 `
 )
 
-var (
-	logger    = lorg.NewLog()
-	debugMode = false
-)
+var logger = lorg.NewLog()
 
-func main() {
-	args := godocs.MustParse(usage, version, godocs.UsePager)
+func bootstrap(args map[string]interface{}) {
+	var err error
+
+	debugMode := args["--debug"].(bool)
+	traceMode := args["--trace"].(bool)
 
 	logger.SetFormat(
 		colorgful.MustApplyDefaultTheme(
@@ -47,33 +63,63 @@ func main() {
 		),
 	)
 
-	debugMode = args["--debug"].(bool)
+	logger.SetIndentLines(true)
+
 	if debugMode {
 		logger.SetLevel(lorg.LevelDebug)
+		logger.Debugf("debug mode enabled")
 	}
 
-	database, err := openDatabase(args["--database"].(string))
-	if err != nil {
-		fatalh(err, "can't open database at %s", args["--database"].(string))
+	if traceMode {
+		logger.SetLevel(lorg.LevelTrace)
+		logger.Tracef("trace mode enabled")
+
+		debugMode = true
 	}
 
-	threads, err := strconv.Atoi(args["--threads"].(string))
+	aur.SetLogger(logger)
+
+	faces.SetLogger(logger)
+
+	cloud, err = faces.NewHastur()
 	if err != nil {
-		fatalh(err, "invalid threads count passed in --threads")
+		fatalln(err)
+	}
+}
+
+func main() {
+	args := godocs.MustParse(usage, version, godocs.UsePager)
+
+	comm := exec.Command("x")
+	comm.Run()
+	bootstrap(args)
+
+	database, err := openDatabase(
+		filepath.Join(args["--root"].(string), "packages.db"),
+	)
+	if err != nil {
+		fatalh(err, "can't open aurora database")
 	}
 
 	switch {
-	case args["--queue"].(bool):
-		err = processQueue(database, threads)
-
-	case args["--listen"] != nil:
-		err = serveWeb(args["--listen"].(string), database)
-
 	case args["--add"] != nil:
 		err = addPackage(args["--add"].(string), database)
 
 	case args["--remove"] != nil:
 		err = removePackage(args["--remove"].(string), database)
+
+	case args["--process"].(bool):
+		err = processQueue(
+			database,
+			args["--root"].(string),
+			args["--files"].(string),
+			args["--interface"].(string),
+			args["--filesystem"].(string),
+			argInt(args, "--threads"),
+		)
+
+	case args["--listen"] != nil:
+		err = serveWeb(args["--listen"].(string), database)
 	}
 
 	if err != nil {
@@ -82,31 +128,148 @@ func main() {
 }
 
 func addPackage(name string, db *database) error {
-	panic("x")
+	db.add(name)
+
+	infof("package %s has been added", name)
+
+	debugf("saving database")
+
+	err := saveDatabase(db)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't save database",
+		)
+	}
+
+	return nil
 }
 
 func removePackage(name string, db *database) error {
-	panic("x")
+	db.remove(name)
+
+	infof("package %s has been removed", name)
+
+	debugf("saving database")
+
+	err := saveDatabase(db)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't save database",
+		)
+	}
+
+	return nil
 }
 
-func processQueue(db *database, threads int) error {
-	queue := newQueue(threads)
+func processQueue(
+	db *database,
+	root string, files string,
+	hostInterface string,
+	filesystem string,
+	capacity int,
+) error {
+	publicKey, err := getPublicKeySSH(root)
+	if err != nil {
+		return err
+	}
 
-	for range time.Tick(time.Minute) {
+	pool := threadpool.New()
+	pool.Spawn(capacity)
+
+	infof(
+		"thread pool with %d threads has been spawned", capacity,
+	)
+
+	cloud.SetHostNetwork(hostInterface)
+	cloud.SetRootDirectory(filepath.Join(root, "cloud"))
+	cloud.SetQuietMode(true)
+	cloud.SetFileSystem(filesystem)
+
+	for {
 		err := db.sync()
 		if err != nil {
-			return hierr.Errorf(
+			return ser.Errorf(
 				err, "can't sync database",
 			)
 		}
 
-		for _, pkg := range db.getData() {
-			queue.push(&build{
-				database: db,
-				pkg:      pkg,
-			})
+		debugf("database has been synchronized")
+
+		for name, pkg := range db.getData() {
+			tracef("pushing %s to thread pool queue", name)
+
+			pool.Push(
+				&build{
+					database:  db,
+					pkg:       pkg,
+					publicKey: publicKey,
+					root:      root,
+					files:     files,
+					logger: logger.NewChildWithPrefix(
+						fmt.Sprintf("(%s)", name),
+					),
+				},
+			)
 		}
+
+		time.Sleep(time.Second * 5)
 	}
 
 	return nil
+}
+
+func getPublicKeySSH(root string) ([]byte, error) {
+	var (
+		private = filepath.Join(root, "ssh/id_rsa")
+		public  = filepath.Join(root, "ssh/id_rsa.pub")
+	)
+
+	debugf("ensuring ssh keys at %s", private)
+
+	if _, err := os.Stat(private); os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Dir(private), 0600)
+		if err != nil {
+			return nil, ser.Errorf(
+				err, "can't create directory for ssh keys",
+			)
+		}
+
+		infof("generating ssh keys pair at %s", private)
+
+		err = lexec.New(
+			lexec.Loggerf(logger.Debugf),
+			"ssh-keygen", "-t", "rsa", "-f", private,
+		).Run()
+		if err != nil {
+			return nil, ser.Errorf(
+				err,
+				"can't generate ssh keys pair for working with containers",
+			)
+		}
+	}
+
+	debugf("reading public ssh key at %s", public)
+
+	key, err := ioutil.ReadFile(public)
+	if err != nil {
+		return nil, ser.Errorf(
+			err, "can't read public ssh key for working with containers",
+		)
+	}
+
+	return key, nil
+}
+
+func argInt(args map[string]interface{}, arg string) int {
+	value, err := strconv.Atoi(args[arg].(string))
+	if err != nil {
+		fatalh(
+			err,
+			"invalid value %q passed in %s option, should be an integer",
+			args[arg], arg,
+		)
+		return 0
+	}
+
+	return value
 }

@@ -2,10 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/kovetskiy/ko"
+	"github.com/reconquest/ser-go"
 )
 
 type pkg struct {
@@ -27,7 +31,26 @@ func openDatabase(path string) (*database, error) {
 		data:    map[string]pkg{},
 	}
 
-	err := ko.Load(path, &database.data, json.Unmarshal)
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Dir(path), 0644)
+		if err != nil {
+			return nil, ser.Errorf(
+				err, "can't create directory for aurora database",
+			)
+		}
+
+		err = ioutil.WriteFile(path, []byte(`{}`), 0600)
+		if err != nil {
+			return nil, ser.Errorf(
+				err, "can't initialize empty database file",
+			)
+		}
+
+		return database, nil
+	}
+
+	err = ko.Load(path, &database.data, json.Unmarshal)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +76,43 @@ func (database *database) sync() error {
 	err := ko.Load(database.path, &database.data, json.Unmarshal)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (database *database) add(name string) {
+	database.Lock()
+	defer database.Unlock()
+
+	database.data[name] = pkg{
+		Name: name,
+	}
+}
+
+func (database *database) remove(name string) {
+	database.Lock()
+	defer database.Unlock()
+
+	delete(database.data, name)
+}
+
+func saveDatabase(database *database) error {
+	database.RLock()
+	defer database.RUnlock()
+
+	output, err := json.MarshalIndent(database.data, "", "    ")
+	if err != nil {
+		return ser.Errorf(
+			err, "can't marshal database data",
+		)
+	}
+
+	err = ioutil.WriteFile(database.path, output, 0600)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't write database file",
+		)
 	}
 
 	return nil
