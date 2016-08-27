@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,68 +26,56 @@ var (
 		"util-linux", "diffutils", "bind-tools",
 		"openssh", "dhcpcd", "iproute2", "pacman", "iputils",
 		"gzip", "binutils", "sudo", "gcc", "file", "libarchive",
-		"pkg-config", "make",
+		"pkg-config", "make", "fakeroot",
 	}
 )
 
-func (build *build) prepare() (
-	container string, address string, shutdown func(), err error,
-) {
-	container = build.pkg.Name + "-" + fmt.Sprint(time.Now().Unix())
+func (build *build) bootstrap() error {
+	var err error
 
-	build.logger.Debugf("creating container %s", container)
+	build.container = build.pkg.Name + "-" + fmt.Sprint(time.Now().Unix())
 
-	process, err := build.createContainer(container)
+	build.process, err = build.createContainer()
 	if err != nil {
-		return container, address, shutdown, ser.Errorf(
+		return ser.Errorf(
 			err, "can't create container for building package",
 		)
 	}
 
 	build.logger.Debugf(
 		"container %s has been created",
-		container,
+		build.container,
 	)
-
-	shutdown = func() {
-		build.killProcess(process)
-	}
-
-	defer func() {
-		if err != nil {
-			shutdown()
-		}
-	}()
 
 	build.logger.Debugf(
-		"container %s sshd process has been spawned",
-		container,
+		"obtaining container %s network address",
+		build.container,
 	)
 
-	build.logger.Debugf("obtaining container %s network address", container)
-
-	address, err = build.getContainerAddress(container)
+	err := build.queryContainer()
 	if err != nil {
-		return container, address, shutdown, ser.Errorf(
-			err, "can't obtain container %s ip address", container,
-		)
+		return err
 	}
 
 	build.logger.Debugf(
-		"container %s network address: %s",
-		container,
-		address,
+		"container network address: %s",
+		build.address,
 	)
 
-	return container, address, shutdown, nil
+	build.logger.Debugf(
+		"container rootfs: %s",
+		build.dir,
+	)
+
+	return nil
 }
 
-func (build *build) createContainer(
-	containerName string,
-) (*execution.Operation, error) {
+func (build *build) createContainer() (*execution.Operation, error) {
+	build.logger.Debugf("creating container %s", build.container)
+
 	container := cloud.NewContainer().
 		SetSourceDirectory(build.files).
-		SetName(containerName).
+		SetName(build.container).
 		SetPackages(containerPackages).
 		SetCommand(containerStartCommand)
 
@@ -162,13 +149,13 @@ func (build *build) killProcess(operation *execution.Operation) {
 	build.logger.Debugf("container's sshd process released")
 }
 
-func (build *build) getContainerDir(container string) string {
-	return filepath.Join(
-		build.root, "cloud/containers", container, ".nspawn.root",
-	)
+func (build *build) shutdown() {
+	if build.process != nil {
+		build.killProcess(build.process)
+	}
 }
 
-func (build *build) getContainerAddress(name string) (string, error) {
+func (build *build) queryContainer(name string) error {
 	containers, err := cloud.Query(name)
 	if err != nil {
 		return "", ser.Errorf(
@@ -195,5 +182,8 @@ func (build *build) getContainerAddress(name string) (string, error) {
 		return "", fmt.Errorf("container address is empty")
 	}
 
-	return strings.Split(container.Address, "/")[0], nil
+	build.address = strings.Split(container.Address, "/")[0]
+	build.dir = container.Root
+
+	return nil
 }

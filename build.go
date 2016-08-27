@@ -2,14 +2,22 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/faces/api/hastur"
+	"github.com/reconquest/faces/execution"
+	"github.com/reconquest/lexec-go"
 	"github.com/reconquest/ser-go"
 	"github.com/theairkit/runcmd"
+)
+
+const (
+	connectionMaxRetries = 10
+	connectionTimeoutMS  = 500
 )
 
 var (
@@ -17,16 +25,19 @@ var (
 )
 
 type build struct {
-	database  *database
-	pkg       pkg
-	network   string
-	logger    lorg.Logger
-	root      string
-	files     string
-	publicKey []byte
-	ssh       runcmd.Runner
+	database *database
+	pkg      pkg
+	network  string
+	logger   lorg.Logger
+	root     string
+	files    string
+	ssh      runcmd.Runner
 
-	builded map[string]bool
+	archives  map[string]bool
+	container string
+	address   string
+	dir       string
+	process   *execution.Operation
 }
 
 func (build *build) String() string {
@@ -34,81 +45,114 @@ func (build *build) String() string {
 }
 
 func (build *build) Process() {
-	infof("starting build %s", build.pkg.Name)
+	var err error
 
-	container, address, shutdown, err := build.prepare()
+	infof("processing %s", build.pkg.Name)
+
+	defer build.shutdown()
+
+	err = build.bootstrap()
 	if err != nil {
 		build.logger.Error(err)
 		return
 	}
 
-	defer shutdown()
+	err = build.connect()
+	if err != nil {
+		build.logger.Error(err)
+		return
+	}
 
-	build.logger.Debugf(
-		"connecting to container %s (%s:22)",
-		container, address,
+	err = build.compile(build.pkg.Name)
+	if err != nil {
+		build.logger.Error(
+			ser.Errorf(
+				err,
+				"can't build package %s", build.pkg.Name,
+			),
+		)
+	}
+
+	archives, err := filepath.Glob(
+		filepath.Join(
+			build.dir, "aurora", build.pkg.Name, "*.pkg.*",
+		),
 	)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't stat package archive files",
+		)
+	}
 
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 500)
+	fmt.Printf("XXXXXX build.go:86: archives: %#v\n", archives)
+}
 
+func (build *build) connect() error {
+	for retry := 1; retry <= connectionMaxRetries; retry++ {
+		build.logger.Debugf(
+			"establishing connection to %s:22",
+			build.address,
+		)
+
+		time.Sleep(time.Millisecond * connectionTimeoutMS)
+
+		var err error
 		build.ssh, err = runcmd.NewRemotePassAuthRunner(
-			"root", address+":22", "",
+			"root", build.address+":22", "",
 		)
 		if err != nil {
 			build.logger.Error(
 				ser.Errorf(
 					err,
-					"can't connect to container %s (%s:22) ssh",
-					container, address,
+					"can't establish connection to container %s [%s:22]",
+					build.container, build.address,
 				),
 			)
+
+			continue
 		}
-	}
 
-	if err != nil {
-		return
-	}
-
-	build.builded = map[string]bool{}
-
-	build.logger.Debugf("building package %s", build.pkg.Name)
-
-	err = build.compile(container, build.pkg.Name)
-	if err != nil {
-		build.logger.Error(ser.Errorf(
-			err, "can't build package %s", build.pkg.Name,
-		))
-	}
-}
-
-func (build *build) compile(container, pkg string) error {
-	if _, ok := build.builded[pkg]; ok {
 		return nil
 	}
 
-	build.logger.Debugf("fetching package %s", pkg)
+	return fmt.Errorf(
+		"can't establish connection to container %s [%s:22]",
+		build.container, build.address,
+	)
+}
 
-	err := build.fetch(container, pkg)
+func (build *build) compile(pkgname string) error {
+	if build.archives == nil {
+		build.archives = map[string]bool{}
+	}
+
+	if _, ok := build.archives[pkgname]; ok {
+		return nil
+	}
+
+	build.logger.Debugf("fetching package %s", pkgname)
+
+	err := build.fetch(pkgname)
 	if err != nil {
 		return ser.Errorf(
-			err, "can't fetch package '%s'", pkg,
+			err, "can't fetch package %s", pkgname,
 		)
 	}
 
-	build.logger.Debugf("retrieving dependencies for %s", pkg)
+	build.logger.Debugf("retrieving dependencies for %s", pkgname)
 
-	depends, err := build.getAURDepends(container, pkg)
+	depends, err := build.getAURDepends(pkgname)
 	if err != nil {
 		return ser.Errorf(
-			err, "can't get list of dependencies for package '%s'",
+			err, "can't get list of dependencies for package %s",
+			pkgname,
 		)
 	}
 
 	for _, item := range depends {
 		build.logger.Debugf("dependency: %s", item)
 
-		err = build.compile(container, item)
+		err = build.compile(item)
 		if err != nil {
 			return ser.Errorf(
 				err, "can't build dependency package: %s",
@@ -116,76 +160,57 @@ func (build *build) compile(container, pkg string) error {
 		}
 	}
 
-	build.logger.Debugf("making package %s", pkg)
+	build.makepkg(pkgname)
 
-	cmd, err := build.ssh.Command(
-		fmt.Sprintf(
-			"bash -c 'cd /aurora/%s/ && "+
-				"makepkg -si --noconfirm'",
-			pkg,
-		),
-	)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't open ssh session",
-		)
-	}
-
-	_, err = cmd.Run()
-	if err != nil {
-		return ser.Errorf(
-			err, "can't make package %s", pkg,
-		)
-	}
-
-	build.builded[pkg] = true
+	build.archives[pkgname] = true
 
 	return nil
 }
 
-func (build *build) fetch(container, pkg string) error {
-	cmd, err := build.ssh.Command(
-		fmt.Sprintf(
-			"git clone https://aur.archlinux.org/%s.git /aurora/%s",
-			pkg, pkg,
+func (build *build) makepkg(pkgname string) error {
+	build.logger.Debugf("executing makepkg %s", pkgname)
+
+	_, err := build.exec(
+		"bash", "-c", fmt.Sprintf(
+			"cd /aurora/%s/ && makepkg -si --noconfirm",
+			pkgname,
 		),
 	)
 	if err != nil {
-		return ser.Errorf(
-			err, "can't open ssh session",
-		)
-	}
-
-	_, err = cmd.Run()
-	if err != nil {
-		return ser.Errorf(
-			err, "can't clone remote repository",
-		)
+		return err
 	}
 
 	return nil
 }
 
-func (build *build) getAURDepends(container, pkg string) ([]string, error) {
-	cmd, err := build.ssh.Command(
+func (build *build) fetch(pkg string) error {
+	_, err := build.exec(
+		"git", "clone", fmt.Sprintf(
+			"https://aur.archlinux.org/%s.git", pkg,
+		), fmt.Sprintf(
+			"/aurora/%s", pkg,
+		),
+	)
+
+	return err
+}
+
+func (build *build) getAURDepends(pkg string) ([]string, error) {
+	output, err := build.exec(
+		"bash", "-c",
 		fmt.Sprintf(
-			`bash -c 'source /aurora/%s/PKGBUILD && echo "${depends[@]}"'`,
+			`. /aurora/%s/PKGBUILD && echo "${depends[@]}"`,
 			pkg,
 		),
 	)
 	if err != nil {
 		return nil, ser.Errorf(
-			err, "can't open ssh session",
+			err, "can't source PKGBUILD",
 		)
 	}
 
-	buffer, err := cmd.Run()
-	if err != nil {
-		return nil, err
-	}
-
 	depends := []string{}
-	for _, line := range buffer {
+	for _, line := range strings.Split(string(output), "\n") {
 		items := strings.Fields(line)
 		for _, item := range items {
 			if item != "" {
@@ -217,4 +242,18 @@ func (build *build) getAURDepends(container, pkg string) ([]string, error) {
 	build.logger.Debugf("aur dependencies for package %s: %q", pkg, names)
 
 	return names, nil
+}
+
+func (build *build) exec(name string, arg ...string) ([]byte, error) {
+	cmd := lexec.New(
+		lexec.Loggerf(build.logger.Tracef),
+		build.ssh.Command(name, arg...),
+	)
+
+	stdout, _, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	return stdout, nil
 }

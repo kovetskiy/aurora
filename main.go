@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -14,7 +12,6 @@ import (
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
 	"github.com/reconquest/faces"
-	"github.com/reconquest/lexec-go"
 	"github.com/reconquest/ser-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -168,11 +165,6 @@ func processQueue(
 	filesystem string,
 	capacity int,
 ) error {
-	publicKey, err := getPublicKeySSH(root)
-	if err != nil {
-		return err
-	}
-
 	pool := threadpool.New()
 	pool.Spawn(capacity)
 
@@ -200,11 +192,10 @@ func processQueue(
 
 			pool.Push(
 				&build{
-					database:  db,
-					pkg:       pkg,
-					publicKey: publicKey,
-					root:      root,
-					files:     files,
+					database: db,
+					pkg:      pkg,
+					root:     root,
+					files:    files,
 					logger: logger.NewChildWithPrefix(
 						fmt.Sprintf("(%s)", name),
 					),
@@ -216,48 +207,6 @@ func processQueue(
 	}
 
 	return nil
-}
-
-func getPublicKeySSH(root string) ([]byte, error) {
-	var (
-		private = filepath.Join(root, "ssh/id_rsa")
-		public  = filepath.Join(root, "ssh/id_rsa.pub")
-	)
-
-	debugf("ensuring ssh keys at %s", private)
-
-	if _, err := os.Stat(private); os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Dir(private), 0600)
-		if err != nil {
-			return nil, ser.Errorf(
-				err, "can't create directory for ssh keys",
-			)
-		}
-
-		infof("generating ssh keys pair at %s", private)
-
-		err = lexec.New(
-			lexec.Loggerf(logger.Debugf),
-			"ssh-keygen", "-t", "rsa", "-f", private,
-		).Run()
-		if err != nil {
-			return nil, ser.Errorf(
-				err,
-				"can't generate ssh keys pair for working with containers",
-			)
-		}
-	}
-
-	debugf("reading public ssh key at %s", public)
-
-	key, err := ioutil.ReadFile(public)
-	if err != nil {
-		return nil, ser.Errorf(
-			err, "can't read public ssh key for working with containers",
-		)
-	}
-
-	return key, nil
 }
 
 func argInt(args map[string]interface{}, arg string) int {
