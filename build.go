@@ -52,14 +52,28 @@ func (build *build) String() string {
 func (build *build) Process() {
 	build.logger.Infof("processing %s", build.pkg.Name)
 
-	buildDate := time.Now()
-	buildStatus := "success"
+	build.pkg.Status = "processing"
+	build.pkg.Date = time.Now()
+
+	build.database.set(build.pkg.Name, build.pkg)
+
+	err := saveDatabase(build.database)
+	if err != nil {
+		build.logger.Error(
+			ser.Errorf(
+				err, "can't save database with new package data",
+			),
+		)
+		return
+	}
 
 	archive, err := build.build()
 	if err != nil {
 		build.logger.Error(err)
 
-		buildStatus = "error"
+		build.pkg.Status = "error"
+	} else {
+		build.pkg.Status = "success"
 	}
 
 	build.logger.Infof(
@@ -67,17 +81,7 @@ func (build *build) Process() {
 		build.pkg.Name, archive,
 	)
 
-	build.database.set(
-		build.pkg.Name,
-		pkg{
-			Name:   build.pkg.Name,
-			Date:   buildDate,
-			Status: buildStatus,
-			Version: extractPackageVersion(
-				filepath.Base(archive), build.pkg.Name,
-			),
-		},
-	)
+	build.database.set(build.pkg.Name, build.pkg)
 
 	err = saveDatabase(build.database)
 	if err != nil {
