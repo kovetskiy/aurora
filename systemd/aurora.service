@@ -1,0 +1,9 @@
+[Unit]
+Description=Daemon for processing aurora packages
+
+[Service]
+ExecStart=/usr/bin/aurora -P
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
