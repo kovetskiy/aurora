@@ -45,10 +45,10 @@ Options:
                            [default: /var/lib/aurora/cloud/]
   -f --files <path>       Root directory that will be entirely copied into containers.
                            [default: /etc/aurora/container/]
-  -a --archives <path>    Root directory to place built package archives.
-                           [default: /var/lib/aurora/archives/]
   -s --filesystem <fs>    Pass specified option as hastur's filesystem.
                            [default: autodetect].
+  -r --repository <path>  Root directory to place aurora repository.
+						   [default: /srv/http/aurora/]
   --debug                 Show debug messages.
   --trace                 Show trace messages.
   -h --help               Show this screen.
@@ -114,11 +114,15 @@ func main() {
 	case args["--process"].(bool):
 		err = processQueue(database, args)
 
-	case args["--query"] != nil:
+	case args["--query"].(bool):
 		err = queryPackage(database)
 
 	case args["--listen"] != nil:
-		err = serveWeb(database, args["--listen"].(string))
+		err = serveWeb(
+			database,
+			args["--listen"].(string),
+			args["--repository"].(string),
+		)
 	}
 
 	if err != nil {
@@ -181,8 +185,8 @@ func processQueue(db *database, args map[string]interface{}) error {
 		cloudRoot       = args["--containers"].(string)
 		cloudFileSystem = args["--filesystem"].(string)
 		cloudNetwork    = args["--interface"].(string)
-		archivesDir     = args["--archives"].(string)
 		containersDir   = args["--files"].(string)
+		repositoryDir   = args["--repository"].(string)
 		capacity        = argInt(args, "--threads")
 	)
 
@@ -198,10 +202,10 @@ func processQueue(db *database, args map[string]interface{}) error {
 	cloud.SetFileSystem(cloudFileSystem)
 	cloud.SetQuietMode(true)
 
-	err := os.MkdirAll(archivesDir, 0644)
+	err := os.MkdirAll(repositoryDir, 0644)
 	if err != nil {
 		return ser.Errorf(
-			err, "can't mkdir %s", archivesDir,
+			err, "can't mkdir %s", repositoryDir,
 		)
 	}
 
@@ -220,10 +224,10 @@ func processQueue(db *database, args map[string]interface{}) error {
 
 			pool.Push(
 				&build{
-					database:    db,
-					pkg:         pkg,
-					sourcesDir:  containersDir,
-					archivesDir: archivesDir,
+					database:      db,
+					pkg:           pkg,
+					sourcesDir:    containersDir,
+					repositoryDir: repositoryDir,
 					logger: logger.NewChildWithPrefix(
 						fmt.Sprintf("(%s)", name),
 					),

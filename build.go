@@ -41,8 +41,8 @@ type build struct {
 	dir       string
 	process   *execution.Operation
 
-	sourcesDir  string
-	archivesDir string
+	sourcesDir    string
+	repositoryDir string
 
 	session runcmd.Runner
 	done    map[string]bool
@@ -58,7 +58,7 @@ func (build *build) Process() {
 	buildDate := time.Now()
 	buildStatus := "success"
 
-	buildVersion, err := build.build()
+	archive, err := build.build()
 	if err != nil {
 		build.logger.Error(err)
 
@@ -66,17 +66,19 @@ func (build *build) Process() {
 	}
 
 	build.logger.Infof(
-		"package %s has been built, version: %s",
-		build.pkg.Name, buildVersion,
+		"package %s has been built: %s",
+		build.pkg.Name, archive,
 	)
 
 	build.database.set(
 		build.pkg.Name,
 		pkg{
-			Name:    build.pkg.Name,
-			Date:    buildDate,
-			Status:  buildStatus,
-			Version: buildVersion,
+			Name:   build.pkg.Name,
+			Date:   buildDate,
+			Status: buildStatus,
+			Version: extractPackageVersion(
+				filepath.Base(archive), build.pkg.Name,
+			),
 		},
 	)
 
@@ -90,7 +92,35 @@ func (build *build) Process() {
 		return
 	}
 
-	build.logger.Infof("database saved, version %s", buildVersion)
+	build.logger.Infof("database saved")
+
+	build.logger.Info("updating repository")
+
+	err = build.repoadd(archive)
+	if err != nil {
+		build.logger.Error(
+			ser.Errorf(
+				err, "can't update aurora repository",
+			),
+		)
+	}
+
+	build.logger.Infof("repository has been updated")
+}
+
+func (build *build) repoadd(path string) error {
+	cmd := exec.Command(
+		"repo-add",
+		filepath.Join(build.repositoryDir, "aurora.db.tar"),
+		path,
+	)
+
+	err := lexec.NewExec(lexec.Loggerf(build.logger.Tracef), cmd).Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (build *build) build() (string, error) {
@@ -126,7 +156,7 @@ func (build *build) build() (string, error) {
 	}
 
 	for _, archive := range archives {
-		target := filepath.Join(build.archivesDir, filepath.Base(archive))
+		target := filepath.Join(build.repositoryDir, filepath.Base(archive))
 
 		err = copyFile(archive, target)
 		if err != nil {
@@ -137,10 +167,7 @@ func (build *build) build() (string, error) {
 			)
 		}
 
-		return extractPackageVersion(
-			filepath.Base(archive),
-			build.pkg.Name,
-		), nil
+		return target, nil
 	}
 
 	return "", errors.New("built archive file not found")

@@ -13,7 +13,7 @@ type webserver struct {
 	database *database
 }
 
-func serveWeb(db *database, name string) error {
+func serveWeb(db *database, address, repository string) error {
 	webserver := &webserver{
 		database: db,
 	}
@@ -23,6 +23,8 @@ func serveWeb(db *database, name string) error {
 	router := gin.New()
 	router.Use(getRouterRecovery(), getRouterLogger())
 
+	router.Static("/aurora", repository)
+
 	router.
 		Handle(
 			"GET", "/api/v1/pkg/", webserver.handlePackagesList,
@@ -31,7 +33,7 @@ func serveWeb(db *database, name string) error {
 			"GET", "/api/v1/pkg/:name", webserver.handlePackageInformation,
 		)
 
-	return nil
+	return router.Run(address)
 }
 
 func (webserver *webserver) handlePackagesList(context *gin.Context) {
