@@ -7,11 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
-
-	"git.rn/devops/amfspec-go"
 
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/lorg"
@@ -467,26 +464,6 @@ func cleanupDirectory(directory string) error {
 func fileExists(path ...string) bool {
 	_, err := os.Stat(filepath.Join(path...))
 	return !os.IsNotExist(err)
-}
-
-func getSortedMapKeys(inputMap interface{}) []string {
-	keys := []string{}
-
-	switch source := inputMap.(type) {
-	case map[string]amfspec.Chmod:
-		for key, _ := range source {
-			keys = append(keys, key)
-		}
-	case map[string]amfspec.Chown:
-		for key, _ := range source {
-			keys = append(keys, key)
-		}
-	default:
-		return keys
-	}
-
-	sort.Strings(keys)
-	return keys
 }
 
 func hasPrefixURL(url string) bool {
