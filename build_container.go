@@ -52,7 +52,7 @@ func (build *build) bootstrap() error {
 		build.container,
 	)
 
-	err := build.queryContainer()
+	err = build.obtainContainerInformation(build.container)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (build *build) createContainer() (*execution.Operation, error) {
 	build.logger.Debugf("creating container %s", build.container)
 
 	container := cloud.NewContainer().
-		SetSourceDirectory(build.files).
+		SetSourceDirectory(build.sourcesDir).
 		SetName(build.container).
 		SetPackages(containerPackages).
 		SetCommand(containerStartCommand)
@@ -155,16 +155,16 @@ func (build *build) shutdown() {
 	}
 }
 
-func (build *build) queryContainer(name string) error {
+func (build *build) obtainContainerInformation(name string) error {
 	containers, err := cloud.Query(name)
 	if err != nil {
-		return "", ser.Errorf(
+		return ser.Errorf(
 			err, "can't query containers information",
 		)
 	}
 
 	if len(containers) != 1 {
-		return "", fmt.Errorf(
+		return fmt.Errorf(
 			"containers cloud engine returned %s items, but must be 1",
 			len(containers),
 		)
@@ -172,14 +172,14 @@ func (build *build) queryContainer(name string) error {
 
 	container := containers[0]
 	if container.Status != "active" {
-		return "", fmt.Errorf(
+		return fmt.Errorf(
 			"container status is '%s', but must be '%s'",
 			container.Status, "active",
 		)
 	}
 
 	if container.Address == "" {
-		return "", fmt.Errorf("container address is empty")
+		return fmt.Errorf("container address is empty")
 	}
 
 	build.address = strings.Split(container.Address, "/")[0]

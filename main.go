@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
-	"path/filepath"
+	"os"
 	"strconv"
+	"text/tabwriter"
 	"time"
 
 	"github.com/kovetskiy/aur-go"
@@ -20,28 +20,39 @@ var (
 	version = "[manual build]"
 	usage   = "aurora " + version + `
 
-
 Usage:
-    aurora [options]
-    aurora -h | --help
-    aurora --version
+  aurora [options] -L <address>
+  aurora [options] -A <package>
+  aurora [options] -R <package>
+  aurora [options] -Q
+  aurora [options] -P
+  aurora -h | --help
+  aurora --version
 
 Options:
-  -L --listen <address>  Listen specified address [default: :80].
-  -A --add <package>     Add specified package to watch and compile cycle queue.
-  -R --remove <package>  Remove specified package from watch and compile cycle queue.
-  -P --process           Process watch and compile cycle queue.
-  -i --interface <link>  Specify host network interface for using in containers.
-                          [default: eth0]
-  -t --threads <n>       Specify amount of threads that can be used. [default: 4]
-  -r --root <path>       Specify path to aurora root directory [default: /var/lib/aurora/].
-  -f --files <path>      Specify container configuration files root directory
-                          [default: /etc/aurora/conf.d/]
-  -s --filesystem <fs>   Specify filesystem to use [default: autodetect].
-  --debug                Show debug messages.
-  --trace                Show trace messages.
-  -h --help              Show this screen.
-  --version              Show version.
+  -L --listen <address>   Listen specified address [default: :80].
+  -A --add <package>      Add specified package to watch and make cycle queue.
+  -R --remove <package>   Remove specified package from watch and make cycle queue.
+  -P --process            Process watch and make cycle queue.
+  -Q --query              Query package database.
+  -i --interface <link>   Network host interface that shall be used in containers system.
+                           [default: eth0]
+  -t --threads <count>    Maximum amount of threads that can be used.
+                           [default: 4]
+  -d --database <path>    Path to place internal database file.
+                           [default: /var/lib/aurora/aurora.db].
+  -c --containers <path>  Root directory to place containers cloud.
+                           [default: /var/lib/aurora/cloud/]
+  -f --files <path>       Root directory that will be entirely copied into containers.
+                           [default: /etc/aurora/container/]
+  -a --archives <path>    Root directory to place built package archives.
+                           [default: /var/lib/aurora/archives/]
+  -s --filesystem <fs>    Pass specified option as hastur's filesystem.
+                           [default: autodetect].
+  --debug                 Show debug messages.
+  --trace                 Show trace messages.
+  -h --help               Show this screen.
+  --version               Show version.
 `
 )
 
@@ -75,7 +86,6 @@ func bootstrap(args map[string]interface{}) {
 	}
 
 	aur.SetLogger(logger)
-
 	faces.SetLogger(logger)
 
 	cloud, err = faces.NewHastur()
@@ -87,36 +97,28 @@ func bootstrap(args map[string]interface{}) {
 func main() {
 	args := godocs.MustParse(usage, version, godocs.UsePager)
 
-	comm := exec.Command("x")
-	comm.Run()
 	bootstrap(args)
 
-	database, err := openDatabase(
-		filepath.Join(args["--root"].(string), "packages.db"),
-	)
+	database, err := openDatabase(args["--database"].(string))
 	if err != nil {
 		fatalh(err, "can't open aurora database")
 	}
 
 	switch {
 	case args["--add"] != nil:
-		err = addPackage(args["--add"].(string), database)
+		err = addPackage(database, args["--add"].(string))
 
 	case args["--remove"] != nil:
-		err = removePackage(args["--remove"].(string), database)
+		err = removePackage(database, args["--remove"].(string))
 
 	case args["--process"].(bool):
-		err = processQueue(
-			database,
-			args["--root"].(string),
-			args["--files"].(string),
-			args["--interface"].(string),
-			args["--filesystem"].(string),
-			argInt(args, "--threads"),
-		)
+		err = processQueue(database, args)
+
+	case args["--query"] != nil:
+		err = queryPackage(database)
 
 	case args["--listen"] != nil:
-		err = serveWeb(args["--listen"].(string), database)
+		err = serveWeb(database, args["--listen"].(string))
 	}
 
 	if err != nil {
@@ -124,8 +126,11 @@ func main() {
 	}
 }
 
-func addPackage(name string, db *database) error {
-	db.add(name)
+func addPackage(db *database, name string) error {
+	db.set(
+		name,
+		pkg{Name: name, Status: "unknown", Date: time.Now()},
+	)
 
 	infof("package %s has been added", name)
 
@@ -141,7 +146,7 @@ func addPackage(name string, db *database) error {
 	return nil
 }
 
-func removePackage(name string, db *database) error {
+func removePackage(db *database, name string) error {
 	db.remove(name)
 
 	infof("package %s has been removed", name)
@@ -158,13 +163,29 @@ func removePackage(name string, db *database) error {
 	return nil
 }
 
-func processQueue(
-	db *database,
-	root string, files string,
-	hostInterface string,
-	filesystem string,
-	capacity int,
-) error {
+func queryPackage(db *database) error {
+	table := tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
+	for _, pkg := range db.getData() {
+		fmt.Fprintf(
+			table,
+			"%s\t%s\t%s\t%s\n",
+			pkg.Name, pkg.Version, pkg.Status, pkg.Date,
+		)
+	}
+
+	return table.Flush()
+}
+
+func processQueue(db *database, args map[string]interface{}) error {
+	var (
+		cloudRoot       = args["--containers"].(string)
+		cloudFileSystem = args["--filesystem"].(string)
+		cloudNetwork    = args["--interface"].(string)
+		archivesDir     = args["--archives"].(string)
+		containersDir   = args["--files"].(string)
+		capacity        = argInt(args, "--threads")
+	)
+
 	pool := threadpool.New()
 	pool.Spawn(capacity)
 
@@ -172,16 +193,23 @@ func processQueue(
 		"thread pool with %d threads has been spawned", capacity,
 	)
 
-	cloud.SetHostNetwork(hostInterface)
-	cloud.SetRootDirectory(filepath.Join(root, "cloud"))
+	cloud.SetHostNetwork(cloudNetwork)
+	cloud.SetRootDirectory(cloudRoot)
+	cloud.SetFileSystem(cloudFileSystem)
 	cloud.SetQuietMode(true)
-	cloud.SetFileSystem(filesystem)
+
+	err := os.MkdirAll(archivesDir, 0644)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't mkdir %s", archivesDir,
+		)
+	}
 
 	for {
 		err := db.sync()
 		if err != nil {
 			return ser.Errorf(
-				err, "can't sync database",
+				err, "can't synchronize database",
 			)
 		}
 
@@ -192,10 +220,10 @@ func processQueue(
 
 			pool.Push(
 				&build{
-					database: db,
-					pkg:      pkg,
-					root:     root,
-					files:    files,
+					database:    db,
+					pkg:         pkg,
+					sourcesDir:  containersDir,
+					archivesDir: archivesDir,
 					logger: logger.NewChildWithPrefix(
 						fmt.Sprintf("(%s)", name),
 					),
@@ -203,7 +231,7 @@ func processQueue(
 			)
 		}
 
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Minute * 10)
 	}
 
 	return nil

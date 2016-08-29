@@ -13,9 +13,10 @@ import (
 )
 
 type pkg struct {
-	Name      string    `json:"name"`
-	Version   string    `json:"version"`
-	LastBuild time.Time `json:"last_build"`
+	Name    string    `json:"name"`
+	Version string    `json:"version"`
+	Status  string    `json:"status"`
+	Date    time.Time `json:"date"`
 }
 
 type database struct {
@@ -81,13 +82,11 @@ func (database *database) sync() error {
 	return nil
 }
 
-func (database *database) add(name string) {
+func (database *database) set(name string, pkg pkg) {
 	database.Lock()
 	defer database.Unlock()
 
-	database.data[name] = pkg{
-		Name: name,
-	}
+	database.data[name] = pkg
 }
 
 func (database *database) remove(name string) {
@@ -95,6 +94,15 @@ func (database *database) remove(name string) {
 	defer database.Unlock()
 
 	delete(database.data, name)
+}
+
+func (database *database) get(name string) (pkg, bool) {
+	database.RLock()
+	defer database.RUnlock()
+
+	pkg, ok := database.data[name]
+
+	return pkg, ok
 }
 
 func saveDatabase(database *database) error {

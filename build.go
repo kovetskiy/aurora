@@ -1,10 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+
+	"git.rn/devops/amfspec-go"
 
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/lorg"
@@ -27,17 +34,18 @@ var (
 type build struct {
 	database *database
 	pkg      pkg
-	network  string
 	logger   lorg.Logger
-	root     string
-	files    string
-	ssh      runcmd.Runner
 
-	archives  map[string]bool
 	container string
 	address   string
 	dir       string
 	process   *execution.Operation
+
+	sourcesDir  string
+	archivesDir string
+
+	session runcmd.Runner
+	done    map[string]bool
 }
 
 func (build *build) String() string {
@@ -45,31 +53,64 @@ func (build *build) String() string {
 }
 
 func (build *build) Process() {
-	var err error
+	build.logger.Infof("processing %s", build.pkg.Name)
 
-	infof("processing %s", build.pkg.Name)
+	buildDate := time.Now()
+	buildStatus := "success"
 
-	defer build.shutdown()
-
-	err = build.bootstrap()
+	buildVersion, err := build.build()
 	if err != nil {
 		build.logger.Error(err)
+
+		buildStatus = "error"
+	}
+
+	build.logger.Infof(
+		"package %s has been built, version: %s",
+		build.pkg.Name, buildVersion,
+	)
+
+	build.database.set(
+		build.pkg.Name,
+		pkg{
+			Name:    build.pkg.Name,
+			Date:    buildDate,
+			Status:  buildStatus,
+			Version: buildVersion,
+		},
+	)
+
+	err = saveDatabase(build.database)
+	if err != nil {
+		build.logger.Error(
+			ser.Errorf(
+				err, "can't save database with new package data",
+			),
+		)
 		return
+	}
+
+	build.logger.Infof("database saved, version %s", buildVersion)
+}
+
+func (build *build) build() (string, error) {
+	defer build.shutdown()
+
+	err := build.bootstrap()
+	if err != nil {
+		return "", err
 	}
 
 	err = build.connect()
 	if err != nil {
-		build.logger.Error(err)
-		return
+		return "", err
 	}
 
 	err = build.compile(build.pkg.Name)
 	if err != nil {
-		build.logger.Error(
-			ser.Errorf(
-				err,
-				"can't build package %s", build.pkg.Name,
-			),
+		return "", ser.Errorf(
+			err,
+			"can't build package %s", build.pkg.Name,
 		)
 	}
 
@@ -79,12 +120,30 @@ func (build *build) Process() {
 		),
 	)
 	if err != nil {
-		return ser.Errorf(
-			err, "can't stat package archive files",
+		return "", ser.Errorf(
+			err, "can't stat built package archive",
 		)
 	}
 
-	fmt.Printf("XXXXXX build.go:86: archives: %#v\n", archives)
+	for _, archive := range archives {
+		target := filepath.Join(build.archivesDir, filepath.Base(archive))
+
+		err = copyFile(archive, target)
+		if err != nil {
+			return "", ser.Errorf(
+				err,
+				"can't copy built package archive %s -> %s",
+				archive, target,
+			)
+		}
+
+		return extractPackageVersion(
+			filepath.Base(archive),
+			build.pkg.Name,
+		), nil
+	}
+
+	return "", errors.New("built archive file not found")
 }
 
 func (build *build) connect() error {
@@ -97,7 +156,7 @@ func (build *build) connect() error {
 		time.Sleep(time.Millisecond * connectionTimeoutMS)
 
 		var err error
-		build.ssh, err = runcmd.NewRemotePassAuthRunner(
+		build.session, err = runcmd.NewRemotePassAuthRunner(
 			"root", build.address+":22", "",
 		)
 		if err != nil {
@@ -122,11 +181,11 @@ func (build *build) connect() error {
 }
 
 func (build *build) compile(pkgname string) error {
-	if build.archives == nil {
-		build.archives = map[string]bool{}
+	if build.done == nil {
+		build.done = map[string]bool{}
 	}
 
-	if _, ok := build.archives[pkgname]; ok {
+	if _, ok := build.done[pkgname]; ok {
 		return nil
 	}
 
@@ -155,14 +214,18 @@ func (build *build) compile(pkgname string) error {
 		err = build.compile(item)
 		if err != nil {
 			return ser.Errorf(
-				err, "can't build dependency package: %s",
+				err, "can't build package %s (dependency of %s)",
+				item, pkgname,
 			)
 		}
 	}
 
-	build.makepkg(pkgname)
+	err = build.makepkg(pkgname)
+	if err != nil {
+		return err
+	}
 
-	build.archives[pkgname] = true
+	build.done[pkgname] = true
 
 	return nil
 }
@@ -247,7 +310,7 @@ func (build *build) getAURDepends(pkg string) ([]string, error) {
 func (build *build) exec(name string, arg ...string) ([]byte, error) {
 	cmd := lexec.New(
 		lexec.Loggerf(build.logger.Tracef),
-		build.ssh.Command(name, arg...),
+		build.session.Command(name, arg...),
 	)
 
 	stdout, _, err := cmd.Output()
@@ -256,4 +319,149 @@ func (build *build) exec(name string, arg ...string) ([]byte, error) {
 	}
 
 	return stdout, nil
+}
+
+func extractPackageVersion(archive, base string) string {
+	extension := strings.LastIndex(archive, ".pkg")
+	if extension < 0 {
+		return ""
+	}
+
+	// remove prefix with package name, remove suffix .pkg{.tar,.tar.xz,}
+	version := archive[len(base+" -"):extension]
+
+	// remove suffix with architecture
+	suffix := strings.LastIndex(version, "-")
+	if suffix < 0 {
+		return version
+	}
+
+	version = version[:suffix]
+
+	return version
+}
+
+func copyFile(source, target string) (err error) {
+	sourceFile, err := os.OpenFile(source, os.O_RDONLY, 0600)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't open %s", source,
+		)
+	}
+
+	defer sourceFile.Close()
+
+	err = os.MkdirAll(filepath.Dir(target), 0775)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't mkdir %s", filepath.Dir(target),
+		)
+	}
+
+	targetFile, err := os.OpenFile(
+		target, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644,
+	)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't open %s", target,
+		)
+	}
+
+	defer func() {
+		closeErr := targetFile.Close()
+		if err == nil && closeErr != nil {
+			err = ser.Errorf(
+				err, "can't close %s", target,
+			)
+		}
+	}()
+
+	_, err = io.Copy(targetFile, sourceFile)
+	if err != nil {
+		return ser.Errorf(
+			err, "can't copy contents",
+		)
+	}
+
+	err = targetFile.Sync()
+	if err != nil {
+		return ser.Errorf(
+			err, "can't sync %s", target,
+		)
+	}
+
+	return nil
+}
+
+func chown(path, value string) error {
+	command := exec.Command("chown", value, path)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf(
+			"chown %s %s failed (%s): %s", value, path, err, string(output),
+		)
+	}
+
+	return nil
+}
+
+func chmod(path, value string) error {
+	command := exec.Command("chmod", value, path)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf(
+			"chmod %s %s failed (%s): %s", value, path, err, string(output),
+		)
+	}
+
+	return nil
+}
+
+func cleanupDirectory(directory string) error {
+	cleanup := func(path string, info os.FileInfo, err error) error {
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if path == directory {
+			return nil
+		}
+
+		return os.RemoveAll(path)
+	}
+
+	return filepath.Walk(directory, cleanup)
+}
+
+func fileExists(path ...string) bool {
+	_, err := os.Stat(filepath.Join(path...))
+	return !os.IsNotExist(err)
+}
+
+func getSortedMapKeys(inputMap interface{}) []string {
+	keys := []string{}
+
+	switch source := inputMap.(type) {
+	case map[string]amfspec.Chmod:
+		for key, _ := range source {
+			keys = append(keys, key)
+		}
+	case map[string]amfspec.Chown:
+		for key, _ := range source {
+			keys = append(keys, key)
+		}
+	default:
+		return keys
+	}
+
+	sort.Strings(keys)
+	return keys
+}
+
+func hasPrefixURL(url string) bool {
+	return strings.Contains(url, "://")
 }
