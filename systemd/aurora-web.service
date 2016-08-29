@@ -1,0 +1,9 @@
+[Unit]
+Description=Listener for distributing aurora repository
+
+[Service]
+ExecStart=/usr/bin/aurora -L :80
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
