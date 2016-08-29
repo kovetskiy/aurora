@@ -52,7 +52,7 @@ func (build *build) String() string {
 func (build *build) Process() {
 	build.logger.Infof("processing %s", build.pkg.Name)
 
-	build.pkg.Status = "processing"
+	build.pkg.Status = "process"
 	build.pkg.Date = time.Now()
 
 	build.database.set(build.pkg.Name, build.pkg)
@@ -356,7 +356,7 @@ func extractPackageVersion(archive, base string) string {
 	}
 
 	// remove prefix with package name, remove suffix .pkg{.tar,.tar.xz,}
-	version := archive[len(base+" -"):extension]
+	version := archive[len(base+"-"):extension]
 
 	// remove suffix with architecture
 	suffix := strings.LastIndex(version, "-")

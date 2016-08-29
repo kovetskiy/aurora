@@ -173,7 +173,8 @@ func queryPackage(db *database) error {
 		fmt.Fprintf(
 			table,
 			"%s\t%s\t%s\t%s\n",
-			pkg.Name, pkg.Version, pkg.Status, pkg.Date,
+			pkg.Name, pkg.Version, pkg.Status,
+			pkg.Date.Format("2006-01-02 15:04:05"),
 		)
 	}
 
