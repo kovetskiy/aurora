@@ -48,7 +48,7 @@ Options:
   -s --filesystem <fs>    Pass specified option as hastur's filesystem.
                            [default: autodetect].
   -r --repository <path>  Root directory to place aurora repository.
-						   [default: /srv/http/aurora/]
+                           [default: /srv/http/aurora/]
   --debug                 Show debug messages.
   --trace                 Show trace messages.
   -h --help               Show this screen.
