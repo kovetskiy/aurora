@@ -22,17 +22,17 @@ var (
 
 Usage:
   aurora [options] -L <address>
-  aurora [options] -A <package>
-  aurora [options] -R <package>
+  aurora [options] -A <package>...
+  aurora [options] -R <package>...
   aurora [options] -Q
   aurora [options] -P
   aurora -h | --help
   aurora --version
 
 Options:
-  -L --listen <address>   Listen specified address [default: :80].
-  -A --add <package>      Add specified package to watch and make cycle queue.
-  -R --remove <package>   Remove specified package from watch and make cycle queue.
+  -L --listen             Listen specified address [default: :80].
+  -A --add                Add specified package to watch and make cycle queue.
+  -R --remove             Remove specified package from watch and make cycle queue.
   -P --process            Process watch and make cycle queue.
   -Q --query              Query package database.
   -i --interface <link>   Network host interface that shall be used in containers system.
@@ -105,11 +105,11 @@ func main() {
 	}
 
 	switch {
-	case args["--add"] != nil:
-		err = addPackage(database, args["--add"].(string))
+	case args["--add"].(bool):
+		err = addPackage(database, args["<package>"].([]string))
 
-	case args["--remove"] != nil:
-		err = removePackage(database, args["--remove"].(string))
+	case args["--remove"].(bool):
+		err = removePackage(database, args["<package>"].([]string))
 
 	case args["--process"].(bool):
 		err = processQueue(database, args)
@@ -117,10 +117,10 @@ func main() {
 	case args["--query"].(bool):
 		err = queryPackage(database)
 
-	case args["--listen"] != nil:
+	case args["--listen"].(bool):
 		err = serveWeb(
 			database,
-			args["--listen"].(string),
+			args["<address>"].(string),
 			args["--repository"].(string),
 		)
 	}
@@ -130,13 +130,15 @@ func main() {
 	}
 }
 
-func addPackage(db *database, name string) error {
-	db.set(
-		name,
-		pkg{Name: name, Status: "unknown", Date: time.Now()},
-	)
+func addPackage(db *database, packages []string) error {
+	for _, name := range packages {
+		db.set(
+			name,
+			pkg{Name: name, Status: "unknown", Date: time.Now()},
+		)
 
-	infof("package %s has been added", name)
+		infof("package %s has been added", name)
+	}
 
 	debugf("saving database")
 
@@ -150,10 +152,12 @@ func addPackage(db *database, name string) error {
 	return nil
 }
 
-func removePackage(db *database, name string) error {
-	db.remove(name)
+func removePackage(db *database, packages []string) error {
+	for _, name := range packages {
+		db.remove(name)
 
-	infof("package %s has been removed", name)
+		infof("package %s has been removed", name)
+	}
 
 	debugf("saving database")
 
