@@ -87,7 +87,7 @@ func (build *build) init() bool {
 	}
 
 	build.pkgLog = logger.NewChild()
-	build.pkgLog.SetFormat(lorg.NewFormat("${time}"))
+	build.pkgLog.SetFormat(lorg.NewFormat("${time} %s"))
 	build.pkgLog.SetOutput(logfile)
 
 	cloud, err := faces.NewHastur()
