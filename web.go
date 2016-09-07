@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -11,11 +13,13 @@ import (
 
 type webserver struct {
 	database *database
+	logsDir  string
 }
 
-func serveWeb(db *database, address, repository string) error {
+func serveWeb(db *database, address, repository, logsDir string) error {
 	webserver := &webserver{
 		database: db,
+		logsDir:  logsDir,
 	}
 
 	gin.SetMode(gin.ReleaseMode)
@@ -69,7 +73,18 @@ func (webserver *webserver) handlePackageInformation(context *gin.Context) {
 		return
 	}
 
-	context.IndentedJSON(http.StatusOK, pkg)
+	contents, err := ioutil.ReadFile(
+		filepath.Join(webserver.logsDir, pkg.Name),
+	)
+	if err != nil {
+		context.IndentedJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err.Error()},
+		)
+		return
+	}
+
+	context.Data(http.StatusOK, "text/plain", contents)
 }
 
 func getRouterRecovery() gin.HandlerFunc {

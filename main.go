@@ -117,6 +117,7 @@ func main() {
 			database,
 			args["<address>"].(string),
 			args["--repository"].(string),
+			args["--logs"].(string),
 		)
 	}
 
