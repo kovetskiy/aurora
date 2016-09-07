@@ -41,6 +41,8 @@ Options:
                            [default: 4]
   -d --database <path>    Path to place internal database file.
                            [default: /var/lib/aurora/aurora.db].
+  -l --logs <path>        Root directory to place build logs.
+                           [default: /var/log/aurora/packages/]
   -c --containers <path>  Root directory to place containers cloud.
                            [default: /var/lib/aurora/cloud/]
   -f --files <path>       Root directory that will be entirely copied into containers.
@@ -59,8 +61,6 @@ Options:
 var logger = lorg.NewLog()
 
 func bootstrap(args map[string]interface{}) {
-	var err error
-
 	debugMode := args["--debug"].(bool)
 	traceMode := args["--trace"].(bool)
 
@@ -87,11 +87,6 @@ func bootstrap(args map[string]interface{}) {
 
 	aur.SetLogger(logger)
 	faces.SetLogger(logger)
-
-	cloud, err = faces.NewHastur()
-	if err != nil {
-		fatalln(err)
-	}
 }
 
 func main() {
@@ -192,6 +187,7 @@ func processQueue(db *database, args map[string]interface{}) error {
 		cloudNetwork    = args["--interface"].(string)
 		containersDir   = args["--files"].(string)
 		repositoryDir   = args["--repository"].(string)
+		logsDir         = args["--logs"].(string)
 		capacity        = argInt(args, "--threads")
 	)
 
@@ -201,11 +197,6 @@ func processQueue(db *database, args map[string]interface{}) error {
 	infof(
 		"thread pool with %d threads has been spawned", capacity,
 	)
-
-	cloud.SetHostNetwork(cloudNetwork)
-	cloud.SetRootDirectory(cloudRoot)
-	cloud.SetFileSystem(cloudFileSystem)
-	cloud.SetQuietMode(true)
 
 	err := os.MkdirAll(repositoryDir, 0644)
 	if err != nil {
@@ -229,13 +220,15 @@ func processQueue(db *database, args map[string]interface{}) error {
 
 			pool.Push(
 				&build{
-					database:      db,
-					pkg:           pkg,
-					sourcesDir:    containersDir,
-					repositoryDir: repositoryDir,
-					logger: logger.NewChildWithPrefix(
-						fmt.Sprintf("(%s)", name),
-					),
+					database:        db,
+					pkg:             pkg,
+					sourcesDir:      containersDir,
+					repositoryDir:   repositoryDir,
+					logsDir:         logsDir,
+					cloudNetwork:    cloudNetwork,
+					cloudRootDir:    cloudRoot,
+					cloudFileSystem: cloudFileSystem,
+					cloudQuietMode:  true,
 				},
 			)
 		}

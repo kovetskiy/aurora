@@ -42,12 +42,12 @@ func (build *build) bootstrap() error {
 		)
 	}
 
-	build.logger.Debugf(
+	build.log.Debugf(
 		"container %s has been created",
 		build.container,
 	)
 
-	build.logger.Debugf(
+	build.log.Debugf(
 		"obtaining container %s network address",
 		build.container,
 	)
@@ -57,12 +57,12 @@ func (build *build) bootstrap() error {
 		return err
 	}
 
-	build.logger.Debugf(
+	build.log.Debugf(
 		"container network address: %s",
 		build.address,
 	)
 
-	build.logger.Debugf(
+	build.log.Debugf(
 		"container rootfs: %s",
 		build.dir,
 	)
@@ -71,15 +71,15 @@ func (build *build) bootstrap() error {
 }
 
 func (build *build) createContainer() (*execution.Operation, error) {
-	build.logger.Debugf("creating container %s", build.container)
+	build.log.Debugf("creating container %s", build.container)
 
-	container := cloud.NewContainer().
+	container := build.cloud.NewContainer().
 		SetSourceDirectory(build.sourcesDir).
 		SetName(build.container).
 		SetPackages(containerPackages).
 		SetCommand(containerStartCommand)
 
-	operation := cloud.Start(container)
+	operation := build.cloud.Start(container)
 
 	pipe, writer := io.Pipe()
 	operation.SetStdout(writer)
@@ -99,14 +99,14 @@ func (build *build) createContainer() (*execution.Operation, error) {
 
 		if !listening {
 			done = true
-			build.logger.Errorf(
+			build.log.Errorf(
 				"container's sshd has not started, killing process",
 			)
 			build.killProcess(operation)
 		}
 	}()
 
-	build.logger.Debugf("waiting for container creating log messages")
+	build.log.Debugf("waiting for container creating log messages")
 
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
@@ -124,7 +124,7 @@ func (build *build) createContainer() (*execution.Operation, error) {
 	go func() {
 		err = operation.Wait()
 		if err != nil {
-			build.logger.Error(
+			build.log.Error(
 				ser.Errorf(
 					err, "container's sshd has crashed",
 				),
@@ -138,7 +138,7 @@ func (build *build) createContainer() (*execution.Operation, error) {
 func (build *build) killProcess(operation *execution.Operation) {
 	err := operation.Kill()
 	if err != nil {
-		build.logger.Error(
+		build.log.Error(
 			ser.Errorf(
 				err, "can't kill container's sshd process",
 			),
@@ -146,7 +146,7 @@ func (build *build) killProcess(operation *execution.Operation) {
 		return
 	}
 
-	build.logger.Debugf("container's sshd process released")
+	build.log.Debugf("container's sshd process released")
 }
 
 func (build *build) shutdown() {
@@ -156,7 +156,7 @@ func (build *build) shutdown() {
 }
 
 func (build *build) obtainContainerInformation(name string) error {
-	containers, err := cloud.Query(name)
+	containers, err := build.cloud.Query(name)
 	if err != nil {
 		return ser.Errorf(
 			err, "can't query containers information",

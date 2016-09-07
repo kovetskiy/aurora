@@ -12,6 +12,7 @@ import (
 
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/lorg"
+	"github.com/reconquest/faces"
 	"github.com/reconquest/faces/api/hastur"
 	"github.com/reconquest/faces/execution"
 	"github.com/reconquest/lexec-go"
@@ -24,22 +25,27 @@ const (
 	connectionTimeoutMS  = 500
 )
 
-var (
-	cloud *hastur.Hastur
-)
-
 type build struct {
 	database *database
 	pkg      pkg
-	logger   lorg.Logger
+
+	sourcesDir    string
+	repositoryDir string
+	logsDir       string
+
+	cloud           *hastur.Hastur
+	cloudNetwork    string
+	cloudRootDir    string
+	cloudFileSystem string
+	cloudQuietMode  bool
+
+	log    *lorg.Log
+	pkgLog *lorg.Log
 
 	container string
 	address   string
 	dir       string
 	process   *execution.Operation
-
-	sourcesDir    string
-	repositoryDir string
 
 	session runcmd.Runner
 	done    map[string]bool
@@ -49,64 +55,87 @@ func (build *build) String() string {
 	return build.pkg.Name
 }
 
-func (build *build) Process() {
-	build.logger.Infof("processing %s", build.pkg.Name)
-
-	build.pkg.Status = "process"
-	build.pkg.Date = time.Now()
-
+func (build *build) updateStatus(status string) {
 	build.database.set(build.pkg.Name, build.pkg)
 
 	err := saveDatabase(build.database)
 	if err != nil {
-		build.logger.Error(
+		build.log.Error(
 			ser.Errorf(
-				err, "can't save database with new package data",
+				err, "can't save database with new package status",
 			),
 		)
 		return
 	}
+
+	build.log.Infof("status: %s", status)
+}
+
+func (build *build) init() bool {
+	build.log = logger.NewChildWithPrefix(
+		fmt.Sprintf("(%s)", build.pkg.Name),
+	)
+
+	logfile, err := os.OpenFile(
+		filepath.Join(build.logsDir, build.pkg.Name),
+		os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
+		0644,
+	)
+	if err != nil {
+		build.log.Error(err)
+		return false
+	}
+
+	build.pkgLog = logger.NewChild()
+	build.pkgLog.SetFormat(lorg.NewFormat("${time}"))
+	build.pkgLog.SetOutput(logfile)
+
+	cloud, err := faces.NewHastur()
+	if err != nil {
+		build.log.Error(err)
+		return false
+	}
+
+	cloud.SetHostNetwork(build.cloudNetwork)
+	cloud.SetRootDirectory(build.cloudRootDir)
+	cloud.SetFileSystem(build.cloudFileSystem)
+	cloud.SetQuietMode(build.cloudQuietMode)
+	cloud.SetLogger(build.log)
+
+	build.cloud = cloud
+
+	return true
+}
+
+func (build *build) Process() {
+	if !build.init() {
+		return
+	}
+
+	build.pkg.Date = time.Now()
+	build.updateStatus("processing")
 
 	archive, err := build.build()
 	if err != nil {
-		build.logger.Error(err)
+		build.log.Error(err)
 
-		build.pkg.Status = "error"
-	} else {
-		build.pkg.Status = "success"
-	}
-
-	build.logger.Infof(
-		"package %s has been built: %s",
-		build.pkg.Name, archive,
-	)
-
-	build.database.set(build.pkg.Name, build.pkg)
-
-	err = saveDatabase(build.database)
-	if err != nil {
-		build.logger.Error(
-			ser.Errorf(
-				err, "can't save database with new package data",
-			),
-		)
+		build.updateStatus("failure")
 		return
 	}
 
-	build.logger.Infof("database saved")
-
-	build.logger.Info("updating repository")
+	build.log.Infof("package has been built: %s", archive)
+	build.log.Infof("adding archive %s to aurora repository", archive)
 
 	err = build.repoadd(archive)
 	if err != nil {
-		build.logger.Error(
+		build.log.Error(
 			ser.Errorf(
 				err, "can't update aurora repository",
 			),
 		)
 	}
 
-	build.logger.Infof("repository has been updated")
+	build.updateStatus("success")
 }
 
 func (build *build) repoadd(path string) error {
@@ -116,7 +145,7 @@ func (build *build) repoadd(path string) error {
 		path,
 	)
 
-	err := lexec.NewExec(lexec.Loggerf(build.logger.Tracef), cmd).Run()
+	err := lexec.NewExec(lexec.Loggerf(build.log.Tracef), cmd).Run()
 	if err != nil {
 		return err
 	}
@@ -176,7 +205,7 @@ func (build *build) build() (string, error) {
 
 func (build *build) connect() error {
 	for retry := 1; retry <= connectionMaxRetries; retry++ {
-		build.logger.Debugf(
+		build.log.Debugf(
 			"establishing connection to %s:22",
 			build.address,
 		)
@@ -188,7 +217,7 @@ func (build *build) connect() error {
 			"root", build.address+":22", "",
 		)
 		if err != nil {
-			build.logger.Error(
+			build.log.Error(
 				ser.Errorf(
 					err,
 					"can't establish connection to container %s [%s:22]",
@@ -217,7 +246,7 @@ func (build *build) compile(pkgname string) error {
 		return nil
 	}
 
-	build.logger.Debugf("fetching package %s", pkgname)
+	build.log.Debugf("fetching package %s", pkgname)
 
 	err := build.fetch(pkgname)
 	if err != nil {
@@ -226,7 +255,7 @@ func (build *build) compile(pkgname string) error {
 		)
 	}
 
-	build.logger.Debugf("retrieving dependencies for %s", pkgname)
+	build.log.Debugf("retrieving dependencies for %s", pkgname)
 
 	depends, err := build.getAURDepends(pkgname)
 	if err != nil {
@@ -236,8 +265,10 @@ func (build *build) compile(pkgname string) error {
 		)
 	}
 
+	build.pkgLog.Infof("%s dependencies: %s", depends)
+
 	for _, item := range depends {
-		build.logger.Debugf("dependency: %s", item)
+		build.log.Debugf("dependency: %s", item)
 
 		err = build.compile(item)
 		if err != nil {
@@ -259,7 +290,7 @@ func (build *build) compile(pkgname string) error {
 }
 
 func (build *build) makepkg(pkgname string) error {
-	build.logger.Debugf("executing makepkg %s", pkgname)
+	build.log.Debugf("executing makepkg %s", pkgname)
 
 	_, err := build.exec(
 		"bash", "-c", fmt.Sprintf(
@@ -313,7 +344,7 @@ func (build *build) getAURDepends(pkg string) ([]string, error) {
 		}
 	}
 
-	build.logger.Debugf("dependencies for package %s: %q", pkg, depends)
+	build.log.Debugf("dependencies for package %s: %q", pkg, depends)
 
 	names := []string{}
 	if len(depends) > 0 {
@@ -330,14 +361,14 @@ func (build *build) getAURDepends(pkg string) ([]string, error) {
 		}
 	}
 
-	build.logger.Debugf("aur dependencies for package %s: %q", pkg, names)
+	build.log.Debugf("aur dependencies for package %s: %q", pkg, names)
 
 	return names, nil
 }
 
 func (build *build) exec(name string, arg ...string) ([]byte, error) {
 	cmd := lexec.New(
-		lexec.Loggerf(build.logger.Tracef),
+		lexec.Loggerf(build.pkgLog.Tracef),
 		build.session.Command(name, arg...),
 	)
 
