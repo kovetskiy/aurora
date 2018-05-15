@@ -12,6 +12,7 @@ import (
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
 	"github.com/reconquest/faces"
+	"github.com/reconquest/karma-go"
 	"github.com/reconquest/ser-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -199,10 +200,18 @@ func processQueue(db *database, args map[string]interface{}) error {
 		"thread pool with %d threads has been spawned", capacity,
 	)
 
-	err := os.MkdirAll(repositoryDir, 0644)
+	err = os.MkdirAll(repositoryDir, 0644)
 	if err != nil {
 		return ser.Errorf(
 			err, "can't mkdir %s", repositoryDir,
+		)
+	}
+
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to mkdir logs directory: %s", logsDir,
 		)
 	}
 
