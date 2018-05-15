@@ -6,6 +6,7 @@ pkgdesc="todo"
 arch=('i686' 'x86_64')
 license=('GPL')
 depends=(
+    "hastur"
 )
 makedepends=(
 	'go'
