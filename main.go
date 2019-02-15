@@ -11,8 +11,6 @@ import (
 	"github.com/kovetskiy/godocs"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
-	"github.com/reconquest/faces"
-	"github.com/reconquest/karma-go"
 	"github.com/reconquest/ser-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -36,20 +34,12 @@ Options:
   -R --remove             Remove specified package from watch and make cycle queue.
   -P --process            Process watch and make cycle queue.
   -Q --query              Query package database.
-  -i --interface <link>   Network host interface that shall be used in containers system.
-                           [default: eth0]
   -t --threads <count>    Maximum amount of threads that can be used.
                            [default: 4]
   -d --database <path>    Path to place internal database file.
                            [default: /var/lib/aurora/aurora.db].
   -l --logs <path>        Root directory to place build logs.
                            [default: /var/log/aurora/packages/]
-  -c --containers <path>  Root directory to place containers cloud.
-                           [default: /var/lib/aurora/cloud/]
-  -f --files <path>       Root directory that will be entirely copied into containers.
-                           [default: /etc/aurora/container/]
-  -s --filesystem <fs>    Pass specified option as hastur's filesystem.
-                           [default: autodetect].
   -r --repository <path>  Root directory to place aurora repository.
                            [default: /srv/http/aurora/]
   --debug                 Show debug messages.
@@ -87,7 +77,6 @@ func bootstrap(args map[string]interface{}) {
 	}
 
 	aur.SetLogger(logger)
-	faces.SetLogger(logger)
 }
 
 func main() {
@@ -184,13 +173,9 @@ func queryPackage(db *database) error {
 
 func processQueue(db *database, args map[string]interface{}) error {
 	var (
-		cloudRoot       = args["--containers"].(string)
-		cloudFileSystem = args["--filesystem"].(string)
-		cloudNetwork    = args["--interface"].(string)
-		containersDir   = args["--files"].(string)
-		repositoryDir   = args["--repository"].(string)
-		logsDir         = args["--logs"].(string)
-		capacity        = argInt(args, "--threads")
+		repositoryDir = args["--repository"].(string)
+		//logsDir       = args["--logs"].(string)
+		capacity = argInt(args, "--threads")
 	)
 
 	pool := threadpool.New()
@@ -200,20 +185,20 @@ func processQueue(db *database, args map[string]interface{}) error {
 		"thread pool with %d threads has been spawned", capacity,
 	)
 
-	err = os.MkdirAll(repositoryDir, 0644)
+	err := os.MkdirAll(repositoryDir, 0644)
 	if err != nil {
 		return ser.Errorf(
 			err, "can't mkdir %s", repositoryDir,
 		)
 	}
 
-	err := os.MkdirAll(logsDir, 0755)
-	if err != nil {
-		return karma.Format(
-			err,
-			"unable to mkdir logs directory: %s", logsDir,
-		)
-	}
+	//err = os.MkdirAll(logsDir, 0755)
+	//if err != nil {
+	//return karma.Format(
+	//err,
+	//"unable to mkdir logs directory: %s", logsDir,
+	//)
+	//}
 
 	for {
 		err := db.sync()
@@ -230,15 +215,10 @@ func processQueue(db *database, args map[string]interface{}) error {
 
 			pool.Push(
 				&build{
-					database:        db,
-					pkg:             pkg,
-					sourcesDir:      containersDir,
-					repositoryDir:   repositoryDir,
-					logsDir:         logsDir,
-					cloudNetwork:    cloudNetwork,
-					cloudRootDir:    cloudRoot,
-					cloudFileSystem: cloudFileSystem,
-					cloudQuietMode:  true,
+					database:      db,
+					pkg:           pkg,
+					repositoryDir: repositoryDir,
+					//logsDir:       logsDir,
 				},
 			)
 		}
