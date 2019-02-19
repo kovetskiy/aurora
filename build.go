@@ -47,6 +47,8 @@ func (build *build) String() string {
 }
 
 func (build *build) updateStatus(status string) {
+	build.pkg.Status = status
+
 	build.database.set(build.pkg.Name, build.pkg)
 
 	err := saveDatabase(build.database)
