@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -99,6 +102,36 @@ func (cloud *Cloud) Exec(container string, command []string) error {
 		types.ExecStartCheck{},
 	)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cloud *Cloud) WriteLogs(
+	logsDir string, container string, packageName string,
+) error {
+	logfile, err := os.OpenFile(
+		filepath.Join(logsDir, packageName),
+		os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
+		0644,
+	)
+	if err != nil {
+		return err
+	}
+
+	reader, err := cloud.client.ContainerLogs(
+		context.Background(), container, types.ContainerLogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(logfile, reader)
+	if err != nil && err != io.EOF {
 		return err
 	}
 

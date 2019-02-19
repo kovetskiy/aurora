@@ -26,6 +26,7 @@ type build struct {
 
 	repositoryDir string
 	buildsDir     string
+	logsDir       string
 
 	cloud Cloud
 
@@ -34,7 +35,7 @@ type build struct {
 	container string
 	address   string
 	dir       string
-	id        string
+	ID        string
 	process   *execution.Operation
 
 	session runcmd.Runner
@@ -108,8 +109,6 @@ func (build *build) Process() {
 		)
 	}
 
-	// parse logs
-
 	build.updateStatus("success")
 }
 
@@ -135,7 +134,7 @@ func (build *build) build() (string, error) {
 
 	build.container = build.pkg.Name + "-" + fmt.Sprint(time.Now().Unix())
 
-	build.id, err = build.runContainer()
+	build.ID, err = build.runContainer()
 	if err != nil {
 		return "", ser.Errorf(
 			err, "can't run container for building package",
@@ -143,7 +142,9 @@ func (build *build) build() (string, error) {
 	}
 
 	archives, err := filepath.Glob(
-		filepath.Join(build.repositoryDir, build.pkg.Name, "*.pkg.*"),
+		filepath.Join(
+			fmt.Sprintf("%s/%s*.pkg.*", build.repositoryDir, build.pkg.Name),
+		),
 	)
 	if err != nil {
 		return "", ser.Errorf(
@@ -160,12 +161,12 @@ func (build *build) build() (string, error) {
 }
 
 func (build *build) shutdown() {
-	if build.id != "" {
-		err := build.cloud.DestroyContainer(build.id)
+	if build.ID != "" {
+		err := build.cloud.DestroyContainer(build.ID)
 		if err != nil {
 			build.log.Error(
 				ser.Errorf(
-					err, "can't destroy container %s", build.id,
+					err, "can't destroy container %s", build.ID,
 				),
 			)
 		}
@@ -201,10 +202,19 @@ func (build *build) runContainer() (string, error) {
 
 	build.cloud.WaitContainer(container)
 
+	err = build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
+
+	if err != nil {
+		build.log.Error(
+			ser.Errorf(
+				err, "can't write logs for container %s", build.container,
+			),
+		)
+	}
+
 	build.log.Debugf(
 		"container %s has been stopped",
 		build.container,
 	)
-
 	return container, nil
 }

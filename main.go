@@ -11,6 +11,7 @@ import (
 	"github.com/kovetskiy/godocs"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
+	karma "github.com/reconquest/karma-go"
 	"github.com/reconquest/ser-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -174,8 +175,8 @@ func queryPackage(db *database) error {
 func processQueue(db *database, args map[string]interface{}) error {
 	var (
 		repositoryDir = args["--repository"].(string)
-		//logsDir       = args["--logs"].(string)
-		capacity = argInt(args, "--threads")
+		logsDir       = args["--logs"].(string)
+		capacity      = argInt(args, "--threads")
 	)
 
 	pool := threadpool.New()
@@ -192,13 +193,13 @@ func processQueue(db *database, args map[string]interface{}) error {
 		)
 	}
 
-	//err = os.MkdirAll(logsDir, 0755)
-	//if err != nil {
-	//return karma.Format(
-	//err,
-	//"unable to mkdir logs directory: %s", logsDir,
-	//)
-	//}
+	err = os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to mkdir logs directory: %s", logsDir,
+		)
+	}
 
 	for {
 		err := db.sync()
@@ -218,7 +219,7 @@ func processQueue(db *database, args map[string]interface{}) error {
 					database:      db,
 					pkg:           pkg,
 					repositoryDir: repositoryDir,
-					//logsDir:       logsDir,
+					logsDir:       logsDir,
 				},
 			)
 		}
