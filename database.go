@@ -25,6 +25,13 @@ type database struct {
 	data map[string]pkg
 }
 
+const (
+	StatusUnknown    = "unknown"
+	StatusFailure    = "failure"
+	StatusSuccess    = "success"
+	StatusProcessing = "processing"
+)
+
 func openDatabase(path string) (*database, error) {
 	database := &database{
 		RWMutex: &sync.RWMutex{},

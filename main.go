@@ -212,6 +212,19 @@ func processQueue(db *database, args map[string]interface{}) error {
 		debugf("database has been synchronized")
 
 		for name, pkg := range db.getData() {
+			switch pkg.Status {
+
+			case StatusSuccess:
+				if time.Since(pkg.Date).Hours() < 4 {
+					continue
+				}
+
+			case StatusFailure:
+				if time.Since(pkg.Date).Hours() < 1 {
+					continue
+				}
+			}
+
 			tracef("pushing %s to thread pool queue", name)
 
 			pool.Push(
@@ -224,7 +237,7 @@ func processQueue(db *database, args map[string]interface{}) error {
 			)
 		}
 
-		time.Sleep(time.Minute * 10)
+		time.Sleep(time.Second * 30)
 	}
 
 	return nil
