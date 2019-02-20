@@ -3,7 +3,8 @@ FROM archlinux/base
 RUN pacman -Sy --noconfirm git bzr grep awk openssh \
     make pkg-config diffutils bind-tools \
     dhcpcd iproute2 iputils \
-    sudo gcc which gtk2 gtk3 fakeroot file
+    sudo gcc which gtk2 gtk3 fakeroot file \
+    aclocal autoreconf hostname m4 msgfmt msgmerge patch pod2man with_bindings
 
 RUN mkdir -p /app/build && \
     chgrp nobody /app/build && \
