@@ -219,6 +219,9 @@ func processQueue(db *database, args map[string]interface{}) error {
 		for name, pkg := range db.getData() {
 			switch pkg.Status {
 
+			case StatusProcessing:
+				continue
+
 			case StatusSuccess:
 				if time.Since(pkg.Date).Hours() < 4 {
 					continue
