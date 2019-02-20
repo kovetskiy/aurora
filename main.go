@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"text/tabwriter"
 	"time"
@@ -36,7 +37,7 @@ Options:
   -P --process            Process watch and make cycle queue.
   -Q --query              Query package database.
   -t --threads <count>    Maximum amount of threads that can be used.
-                           [default: 4]
+                           [default: 0]
   -d --database <path>    Path to place internal database file.
                            [default: /var/lib/aurora/aurora.db].
   -l --logs <path>        Root directory to place build logs.
@@ -178,6 +179,10 @@ func processQueue(db *database, args map[string]interface{}) error {
 		logsDir       = args["--logs"].(string)
 		capacity      = argInt(args, "--threads")
 	)
+
+	if capacity == 0 {
+		capacity = runtime.NumCPU()
+	}
 
 	pool := threadpool.New()
 	pool.Spawn(capacity)
