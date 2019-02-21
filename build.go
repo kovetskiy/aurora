@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/client"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/faces/execution"
 	"github.com/reconquest/lexec-go"
@@ -22,8 +24,8 @@ const (
 )
 
 type build struct {
-	database *database
-	pkg      pkg
+	collection *mgo.Collection
+	pkg        pkg
 
 	repositoryDir string
 	buildsDir     string
@@ -54,13 +56,14 @@ func (build *build) String() string {
 func (build *build) updateStatus(status string) {
 	build.pkg.Status = status
 
-	build.database.set(build.pkg.Name, build.pkg)
-
-	err := saveDatabase(build.database)
+	err := build.collection.Update(
+		bson.M{"name": build.pkg.Name},
+		build.pkg,
+	)
 	if err != nil {
 		build.log.Error(
 			ser.Errorf(
-				err, "can't save database with new package status",
+				err, "can't update new package status",
 			),
 		)
 		return

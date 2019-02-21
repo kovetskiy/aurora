@@ -8,6 +8,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/godocs"
 	"github.com/kovetskiy/lorg"
@@ -38,8 +40,6 @@ Options:
   -Q --query              Query package database.
   -t --threads <count>    Maximum amount of threads that can be used.
                            [default: 0]
-  -d --database <path>    Path to place internal database file.
-                           [default: /var/lib/aurora/aurora.db].
   -l --logs <path>        Root directory to place build logs.
                            [default: /var/log/aurora/packages/]
   -r --repository <path>  Root directory to place aurora repository.
@@ -86,27 +86,36 @@ func main() {
 
 	bootstrap(args)
 
-	database, err := openDatabase(args["--database"].(string))
+	database, err := NewDatabase("mongodb://localhost/aurora")
 	if err != nil {
 		fatalh(err, "can't open aurora database")
 	}
 
+	packages := database.C("packages")
+	err = packages.EnsureIndex(mgo.Index{
+		Key:    []string{"name"},
+		Unique: true,
+	})
+	if err != nil {
+		fatalh(err, "can't ensure index for collection")
+	}
+
 	switch {
 	case args["--add"].(bool):
-		err = addPackage(database, args["<package>"].([]string))
+		err = addPackage(packages, args["<package>"].([]string))
 
 	case args["--remove"].(bool):
-		err = removePackage(database, args["<package>"].([]string))
+		err = removePackage(packages, args["<package>"].([]string))
 
 	case args["--process"].(bool):
-		err = processQueue(database, args)
+		err = processQueue(packages, args)
 
 	case args["--query"].(bool):
-		err = queryPackage(database)
+		err = queryPackage(packages)
 
 	case args["--listen"].(bool):
 		err = serveWeb(
-			database,
+			packages,
 			args["<address>"].(string),
 			args["--repository"].(string),
 			args["--logs"].(string),
@@ -118,50 +127,54 @@ func main() {
 	}
 }
 
-func addPackage(db *database, packages []string) error {
+func addPackage(collection *mgo.Collection, packages []string) error {
+	var err error
+
 	for _, name := range packages {
-		db.set(
-			name,
-			pkg{Name: name, Status: "unknown", Date: time.Now()},
+		err = collection.Insert(
+			pkg{Name: name, Status: StatusUnknown, Date: time.Now()},
 		)
 
-		infof("package %s has been added", name)
-	}
-
-	debugf("saving database")
-
-	err := saveDatabase(db)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't save database",
-		)
+		if err == nil {
+			infof("package %s has been added", name)
+		} else if mgo.IsDup(err) {
+			warningf("package %s has not been added: already exists", name)
+		} else {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func removePackage(db *database, packages []string) error {
+func removePackage(collection *mgo.Collection, packages []string) error {
+	var err error
+
 	for _, name := range packages {
-		db.remove(name)
-
-		infof("package %s has been removed", name)
-	}
-
-	debugf("saving database")
-
-	err := saveDatabase(db)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't save database",
+		err = collection.Remove(
+			bson.M{"name": name},
 		)
+
+		if err == nil {
+			infof("package %s has been removed", name)
+		} else if err == mgo.ErrNotFound {
+			warningf("package %s not found", name)
+		} else {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func queryPackage(db *database) error {
-	table := tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
-	for _, pkg := range db.getData() {
+func queryPackage(collection *mgo.Collection) error {
+	var (
+		pkg      = pkg{}
+		packages = collection.Find(bson.M{}).Iter()
+		table    = tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
+	)
+
+	for packages.Next(&pkg) {
 		fmt.Fprintf(
 			table,
 			"%s\t%s\t%s\t%s\n",
@@ -173,7 +186,7 @@ func queryPackage(db *database) error {
 	return table.Flush()
 }
 
-func processQueue(db *database, args map[string]interface{}) error {
+func processQueue(collection *mgo.Collection, args map[string]interface{}) error {
 	var (
 		repositoryDir = args["--repository"].(string)
 		logsDir       = args["--logs"].(string)
@@ -207,20 +220,16 @@ func processQueue(db *database, args map[string]interface{}) error {
 	}
 
 	for {
-		err := db.sync()
-		if err != nil {
-			return ser.Errorf(
-				err, "can't synchronize database",
-			)
-		}
+		pkg := pkg{}
+		packages := collection.Find(bson.M{}).Iter()
 
-		debugf("database has been synchronized")
-
-		for name, pkg := range db.getData() {
+		for packages.Next(&pkg) {
 			switch pkg.Status {
 
 			case StatusProcessing:
-				continue
+				if time.Since(pkg.Date).Hours() < 1 {
+					continue
+				}
 
 			case StatusSuccess:
 				if time.Since(pkg.Date).Hours() < 4 {
@@ -233,11 +242,11 @@ func processQueue(db *database, args map[string]interface{}) error {
 				}
 			}
 
-			tracef("pushing %s to thread pool queue", name)
+			tracef("pushing %s to thread pool queue", pkg.Name)
 
 			pool.Push(
 				&build{
-					database:      db,
+					collection:    collection,
 					pkg:           pkg,
 					repositoryDir: repositoryDir,
 					logsDir:       logsDir,
