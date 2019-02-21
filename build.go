@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -41,6 +42,10 @@ type build struct {
 	session runcmd.Runner
 	done    map[string]bool
 }
+
+var (
+	dbLock = &sync.Mutex{}
+)
 
 func (build *build) String() string {
 	return build.pkg.Name
@@ -115,6 +120,9 @@ func (build *build) Process() {
 }
 
 func (build *build) repoadd(path string) error {
+	dbLock.Lock()
+	defer dbLock.Unlock()
+
 	cmd := exec.Command(
 		"repo-add",
 		filepath.Join(build.repositoryDir, "aurora.db.tar"),
