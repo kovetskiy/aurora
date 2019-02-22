@@ -229,5 +229,6 @@ func (build *build) runContainer() (string, error) {
 		"container %s has been stopped",
 		build.container,
 	)
+
 	return container, nil
 }

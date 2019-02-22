@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -47,12 +48,19 @@ func (cloud *Cloud) CreateContainer(
 }
 
 func (cloud *Cloud) WaitContainer(name string) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Hour)
+
 	wait, _ := cloud.client.ContainerWait(
-		context.Background(), name,
+		ctx, name,
 		container.WaitConditionNotRunning,
 	)
 
-	<-wait
+	select {
+	case <-wait:
+		break
+	case <-ctx.Done():
+		break
+	}
 }
 
 func (cloud *Cloud) StartContainer(container string) error {

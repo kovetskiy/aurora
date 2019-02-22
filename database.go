@@ -15,6 +15,13 @@ type Database struct {
 	session *mgo.Session
 }
 
+type pkg struct {
+	Name    string    `bson:"name"`
+	Version string    `bson:"version"`
+	Status  string    `bson:"status"`
+	Date    time.Time `bson:"date"`
+}
+
 const (
 	StatusUnknown    = "unknown"
 	StatusFailure    = "failure"
@@ -83,11 +90,4 @@ func (db *Database) watch() {
 
 		log.Info("db connection has been re-established")
 	}
-}
-
-type pkg struct {
-	Name    string    `bson:"name"`
-	Version string    `bson:"version"`
-	Status  string    `bson:"status"`
-	Date    time.Time `bson:"date"`
 }
