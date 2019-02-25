@@ -186,6 +186,8 @@ func (build *build) shutdown() {
 
 		build.log.Debugf("container %s has been destroyed", build.container)
 	}
+
+	build.cloud.client.Close()
 }
 
 func (build *build) runContainer() (string, error) {
