@@ -17,6 +17,7 @@ RUN chown -R nobody:nobody /root
 
 COPY ./etc/pacman.conf /etc/pacman.conf
 COPY ./etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
+COPY ./etc/passwd /etc/passwd
 
 COPY ./run.sh /app/run.sh
 
