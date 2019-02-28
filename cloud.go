@@ -48,7 +48,7 @@ func (cloud *Cloud) CreateContainer(
 }
 
 func (cloud *Cloud) WaitContainer(name string) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Hour)
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute * 30)
 
 	wait, _ := cloud.client.ContainerWait(
 		ctx, name,
