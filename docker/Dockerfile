@@ -13,6 +13,8 @@ RUN mkdir -p /app/build && \
     setfacl -d --set u::rwx,g::rwx,o::- /app/build && \
     echo "nobody ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+RUN chown -R nobody:nobody /root
+
 COPY ./etc/pacman.conf /etc/pacman.conf
 COPY ./etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 

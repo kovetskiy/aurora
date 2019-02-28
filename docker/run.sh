@@ -13,7 +13,7 @@ sudo -u nobody mkdir /app/build/$pkg
 
 sudo -u nobody git clone https://aur.archlinux.org/$pkg.git /app/build/$pkg
 
-cd /app/build/$pkg && sudo -u nobody makepkg --syncdeps --noconfirm
+cd /app/build/$pkg && sudo -u nobody -E makepkg --syncdeps --noconfirm
 
 cp -r /app/build/$pkg/*.pkg.* /aurora
 
