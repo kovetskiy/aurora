@@ -4,7 +4,8 @@ RUN pacman -Sy --noconfirm git bzr grep awk openssh \
     make pkg-config diffutils bind-tools \
     dhcpcd iproute2 iputils \
     sudo gcc which gtk2 gtk3 fakeroot file \
-    automake autoconf inetutils m4 gettext patch perl
+    automake autoconf inetutils m4 gettext patch perl \
+    pkgfile man-db bison flex mercurial glew
 
 RUN mkdir -p /app/build && \
     chgrp nobody /app/build && \

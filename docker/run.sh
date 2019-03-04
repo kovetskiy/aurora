@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export PATH=$PATH:/usr/bin/core_perl
+
 pkg=$AURORA_PACKAGE
 
 rm /var/lib/pacman/db.lck 2> /dev/null \
