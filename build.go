@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -165,8 +166,28 @@ func (build *build) build() (string, error) {
 		)
 	}
 
-	for _, archive := range archives {
-		target := archive
+	if len(archives) > 0 {
+		target := archives[0]
+
+		stat, err := os.Stat(target)
+		if err != nil {
+			return "", err
+		}
+
+		newest := stat.ModTime()
+
+		for _, archive := range archives {
+			stat, err = os.Stat(archive)
+			if err != nil {
+				return "", err
+			}
+
+			if stat.ModTime().After(newest) {
+				target = archive
+				newest = stat.ModTime()
+			}
+		}
+
 		return target, nil
 	}
 
