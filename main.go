@@ -254,7 +254,7 @@ func processQueue(collection *mgo.Collection, args map[string]interface{}) error
 			)
 		}
 
-		time.Sleep(time.Second * 30)
+		time.Sleep(time.Second * 2)
 	}
 
 	return nil
