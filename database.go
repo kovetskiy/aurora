@@ -1,127 +1,93 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
-	"github.com/kovetskiy/ko"
-	"github.com/reconquest/ser-go"
+	"github.com/globalsign/mgo"
+	karma "github.com/reconquest/karma-go"
+	"gitlab.com/reconquest/lablab/log"
 )
 
+type Database struct {
+	*mgo.Database
+
+	dsn     string
+	session *mgo.Session
+}
+
 type pkg struct {
-	Name    string    `json:"name"`
-	Version string    `json:"version"`
-	Status  string    `json:"status"`
-	Date    time.Time `json:"date"`
+	Name    string    `bson:"name"`
+	Version string    `bson:"version"`
+	Status  string    `bson:"status"`
+	Date    time.Time `bson:"date"`
 }
 
-type database struct {
-	*sync.RWMutex
-	path string
-	data map[string]pkg
-}
+const (
+	StatusUnknown    = "unknown"
+	StatusFailure    = "failure"
+	StatusSuccess    = "success"
+	StatusProcessing = "processing"
+)
 
-func openDatabase(path string) (*database, error) {
-	database := &database{
-		RWMutex: &sync.RWMutex{},
-		path:    path,
-		data:    map[string]pkg{},
-	}
+func NewDatabase(dsn string) (*Database, error) {
+	db := &Database{dsn: dsn}
 
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Dir(path), 0644)
-		if err != nil {
-			return nil, ser.Errorf(
-				err, "can't create directory for aurora database",
-			)
-		}
-
-		err = ioutil.WriteFile(path, []byte(`{}`), 0600)
-		if err != nil {
-			return nil, ser.Errorf(
-				err, "can't initialize empty database file",
-			)
-		}
-
-		return database, nil
-	}
-
-	err = ko.Load(path, &database.data, json.Unmarshal)
+	err := db.connect()
 	if err != nil {
 		return nil, err
 	}
 
-	return database, nil
+	go db.watch()
+
+	return db, nil
 }
 
-func (database *database) getData() map[string]pkg {
-	database.RLock()
-	defer database.RUnlock()
+func (db *Database) connect() error {
+	log.Infof(
+		nil,
+		"connecting to db %q",
+		db.dsn,
+	)
 
-	new := map[string]pkg{}
-	for key, value := range database.data {
-		new[key] = value
-	}
-	return new
-}
+	started := time.Now()
 
-func (database *database) sync() error {
-	database.Lock()
-	defer database.Unlock()
-
-	err := ko.Load(database.path, &database.data, json.Unmarshal)
+	session, err := mgo.Dial(db.dsn)
 	if err != nil {
-		return err
+		return karma.Format(
+			err,
+			"unable to connect to db: %s",
+			db.dsn,
+		)
 	}
+
+	log.Infof(nil, "db connected | took %s", time.Since(started))
+
+	db.session = session
+
+	db.Database = session.DB("")
 
 	return nil
 }
 
-func (database *database) set(name string, pkg pkg) {
-	database.Lock()
-	defer database.Unlock()
+func (db *Database) watch() {
+	for {
+		time.Sleep(time.Second * 1)
 
-	database.data[name] = pkg
-}
+		err := db.session.Ping()
+		if err != nil {
+			log.Error(karma.Format(err, "unable to ping db"))
+		} else {
+			continue
+		}
 
-func (database *database) remove(name string) {
-	database.Lock()
-	defer database.Unlock()
+		log.Warning("db connection has gone away, trying to reconnect")
 
-	delete(database.data, name)
-}
+		err = db.connect()
+		if err != nil {
+			log.Error(karma.Format(err, "can't establish db connection"))
+			continue
+		}
 
-func (database *database) get(name string) (pkg, bool) {
-	database.RLock()
-	defer database.RUnlock()
-
-	pkg, ok := database.data[name]
-
-	return pkg, ok
-}
-
-func saveDatabase(database *database) error {
-	database.RLock()
-	defer database.RUnlock()
-
-	output, err := json.MarshalIndent(database.data, "", "    ")
-	if err != nil {
-		return ser.Errorf(
-			err, "can't marshal database data",
-		)
+		log.Info("db connection has been re-established")
 	}
-
-	err = ioutil.WriteFile(database.path, output, 0600)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't write database file",
-		)
-	}
-
-	return nil
 }

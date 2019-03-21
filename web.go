@@ -9,17 +9,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 )
 
 type webserver struct {
-	database *database
-	logsDir  string
+	collection *mgo.Collection
+	logsDir    string
 }
 
-func serveWeb(db *database, address, repository, logsDir string) error {
+func serveWeb(collection *mgo.Collection, address, repository, logsDir string) error {
 	webserver := &webserver{
-		database: db,
-		logsDir:  logsDir,
+		collection: collection,
+		logsDir:    logsDir,
 	}
 
 	gin.SetMode(gin.ReleaseMode)
@@ -41,37 +43,15 @@ func serveWeb(db *database, address, repository, logsDir string) error {
 }
 
 func (webserver *webserver) handlePackagesList(context *gin.Context) {
-	// @TODO: move sync to middleware
-	err := webserver.database.sync()
-	if err != nil {
-		context.IndentedJSON(
-			http.StatusInternalServerError,
-			gin.H{"error": err.Error()},
-		)
-		return
-	}
-
-	context.IndentedJSON(http.StatusOK, webserver.database.getData())
+	packages := []bson.M{}
+	webserver.collection.Find(bson.M{}).All(&packages)
+	context.IndentedJSON(http.StatusOK, packages)
 }
 
 func (webserver *webserver) handlePackageInformation(context *gin.Context) {
-	err := webserver.database.sync()
-	if err != nil {
-		context.IndentedJSON(
-			http.StatusInternalServerError,
-			gin.H{"error": err.Error()},
-		)
-		return
-	}
+	pkg := &pkg{}
 
-	pkg, ok := webserver.database.get(context.Param("name"))
-	if !ok {
-		context.IndentedJSON(
-			http.StatusNotFound,
-			gin.H{"error": "not found"},
-		)
-		return
-	}
+	webserver.collection.Find(bson.M{"name": context.Param("name")}).One(&pkg)
 
 	contents, err := ioutil.ReadFile(
 		filepath.Join(webserver.logsDir, pkg.Name),

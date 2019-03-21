@@ -3,17 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"sync"
 	"time"
 
-	"github.com/kovetskiy/aur-go"
+	"github.com/docker/docker/client"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/lorg"
-	"github.com/reconquest/faces"
-	"github.com/reconquest/faces/api/hastur"
 	"github.com/reconquest/faces/execution"
 	"github.com/reconquest/lexec-go"
 	"github.com/reconquest/ser-go"
@@ -26,43 +25,46 @@ const (
 )
 
 type build struct {
-	database *database
-	pkg      pkg
+	collection *mgo.Collection
+	pkg        pkg
 
-	sourcesDir    string
 	repositoryDir string
+	buildsDir     string
 	logsDir       string
 
-	cloud           *hastur.Hastur
-	cloudNetwork    string
-	cloudRootDir    string
-	cloudFileSystem string
-	cloudQuietMode  bool
+	cloud Cloud
 
-	log    *lorg.Log
-	pkgLog *lorg.Log
+	log *lorg.Log
 
 	container string
 	address   string
 	dir       string
+	ID        string
 	process   *execution.Operation
 
 	session runcmd.Runner
 	done    map[string]bool
 }
 
+var (
+	dbLock = &sync.Mutex{}
+)
+
 func (build *build) String() string {
 	return build.pkg.Name
 }
 
 func (build *build) updateStatus(status string) {
-	build.database.set(build.pkg.Name, build.pkg)
+	build.pkg.Status = status
 
-	err := saveDatabase(build.database)
+	err := build.collection.Update(
+		bson.M{"name": build.pkg.Name},
+		build.pkg,
+	)
 	if err != nil {
 		build.log.Error(
 			ser.Errorf(
-				err, "can't save database with new package status",
+				err, "can't update new package status",
 			),
 		)
 		return
@@ -72,37 +74,20 @@ func (build *build) updateStatus(status string) {
 }
 
 func (build *build) init() bool {
+	var err error
+
 	build.log = logger.NewChildWithPrefix(
 		fmt.Sprintf("(%s)", build.pkg.Name),
 	)
 
-	logfile, err := os.OpenFile(
-		filepath.Join(build.logsDir, build.pkg.Name),
-		os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
-		0644,
-	)
+	build.cloud = Cloud{}
+	build.cloud.client, err = client.NewEnvClient()
 	if err != nil {
 		build.log.Error(err)
 		return false
 	}
 
-	build.pkgLog = logger.NewChild()
-	build.pkgLog.SetFormat(lorg.NewFormat("${time} %s"))
-	build.pkgLog.SetOutput(logfile)
-
-	cloud, err := faces.NewHastur()
-	if err != nil {
-		build.log.Error(err)
-		return false
-	}
-
-	cloud.SetHostNetwork(build.cloudNetwork)
-	cloud.SetRootDirectory(build.cloudRootDir)
-	cloud.SetFileSystem(build.cloudFileSystem)
-	cloud.SetQuietMode(build.cloudQuietMode)
-	cloud.SetLogger(build.log)
-
-	build.cloud = cloud
+	build.dir = "/build"
 
 	return true
 }
@@ -139,6 +124,9 @@ func (build *build) Process() {
 }
 
 func (build *build) repoadd(path string) error {
+	dbLock.Lock()
+	defer dbLock.Unlock()
+
 	cmd := exec.Command(
 		"repo-add",
 		filepath.Join(build.repositoryDir, "aurora.db.tar"),
@@ -156,27 +144,20 @@ func (build *build) repoadd(path string) error {
 func (build *build) build() (string, error) {
 	defer build.shutdown()
 
-	err := build.bootstrap()
-	if err != nil {
-		return "", err
-	}
+	var err error
 
-	err = build.connect()
-	if err != nil {
-		return "", err
-	}
+	build.container = build.pkg.Name + "-" + fmt.Sprint(time.Now().Unix())
 
-	err = build.compile(build.pkg.Name)
+	build.ID, err = build.runContainer()
 	if err != nil {
 		return "", ser.Errorf(
-			err,
-			"can't build package %s", build.pkg.Name,
+			err, "can't run container for building package",
 		)
 	}
 
 	archives, err := filepath.Glob(
 		filepath.Join(
-			build.dir, "aurora", build.pkg.Name, "*.pkg.*",
+			fmt.Sprintf("%s/%s*.pkg.*", build.repositoryDir, build.pkg.Name),
 		),
 	)
 	if err != nil {
@@ -185,16 +166,26 @@ func (build *build) build() (string, error) {
 		)
 	}
 
-	for _, archive := range archives {
-		target := filepath.Join(build.repositoryDir, filepath.Base(archive))
+	if len(archives) > 0 {
+		target := archives[0]
 
-		err = copyFile(archive, target)
+		stat, err := os.Stat(target)
 		if err != nil {
-			return "", ser.Errorf(
-				err,
-				"can't copy built package archive %s -> %s",
-				archive, target,
-			)
+			return "", err
+		}
+
+		newest := stat.ModTime()
+
+		for _, archive := range archives {
+			stat, err = os.Stat(archive)
+			if err != nil {
+				return "", err
+			}
+
+			if stat.ModTime().After(newest) {
+				target = archive
+				newest = stat.ModTime()
+			}
 		}
 
 		return target, nil
@@ -203,304 +194,64 @@ func (build *build) build() (string, error) {
 	return "", errors.New("built archive file not found")
 }
 
-func (build *build) connect() error {
-	for retry := 1; retry <= connectionMaxRetries; retry++ {
-		build.log.Debugf(
-			"establishing connection to %s:22",
-			build.address,
-		)
-
-		time.Sleep(time.Millisecond * connectionTimeoutMS)
-
-		var err error
-		build.session, err = runcmd.NewRemotePassAuthRunner(
-			"root", build.address+":22", "",
-		)
+func (build *build) shutdown() {
+	if build.ID != "" {
+		err := build.cloud.DestroyContainer(build.ID)
 		if err != nil {
 			build.log.Error(
 				ser.Errorf(
-					err,
-					"can't establish connection to container %s [%s:22]",
-					build.container, build.address,
+					err, "can't destroy container %s", build.ID,
 				),
 			)
-
-			continue
 		}
 
-		return nil
+		build.log.Debugf("container %s has been destroyed", build.container)
 	}
 
-	return fmt.Errorf(
-		"can't establish connection to container %s [%s:22]",
-		build.container, build.address,
-	)
+	build.cloud.client.Close()
 }
 
-func (build *build) compile(pkgname string) error {
-	if build.done == nil {
-		build.done = map[string]bool{}
-	}
+func (build *build) runContainer() (string, error) {
+	build.log.Debugf("creating container %s", build.container)
 
-	if _, ok := build.done[pkgname]; ok {
-		return nil
-	}
-
-	build.log.Debugf("fetching package %s", pkgname)
-
-	err := build.fetch(pkgname)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't fetch package %s", pkgname,
-		)
-	}
-
-	build.log.Debugf("retrieving dependencies for %s", pkgname)
-
-	depends, err := build.getAURDepends(pkgname)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't get list of dependencies for package %s",
-			pkgname,
-		)
-	}
-
-	build.pkgLog.Infof("%s dependencies: %s", depends)
-
-	for _, item := range depends {
-		build.log.Debugf("dependency: %s", item)
-
-		err = build.compile(item)
-		if err != nil {
-			return ser.Errorf(
-				err, "can't build package %s (dependency of %s)",
-				item, pkgname,
-			)
-		}
-	}
-
-	err = build.makepkg(pkgname)
-	if err != nil {
-		return err
-	}
-
-	build.done[pkgname] = true
-
-	return nil
-}
-
-func (build *build) makepkg(pkgname string) error {
-	build.log.Debugf("executing makepkg %s", pkgname)
-
-	_, err := build.exec(
-		"bash", "-c", fmt.Sprintf(
-			"cd /aurora/%s/ && makepkg -si --noconfirm",
-			pkgname,
-		),
+	container, err := build.cloud.CreateContainer(
+		build.repositoryDir, build.container, build.pkg.Name,
 	)
 	if err != nil {
-		return err
+		return "", ser.Errorf(
+			err, "can't create container",
+		)
 	}
-
-	return nil
-}
-
-func (build *build) fetch(pkg string) error {
-	_, err := build.exec(
-		"git", "clone", fmt.Sprintf(
-			"https://aur.archlinux.org/%s.git", pkg,
-		), fmt.Sprintf(
-			"/aurora/%s", pkg,
-		),
+	build.log.Debugf(
+		"container %s has been created",
+		build.container,
 	)
 
-	return err
-}
-
-func (build *build) getAURDepends(pkg string) ([]string, error) {
-	output, err := build.exec(
-		"bash", "-c",
-		fmt.Sprintf(
-			`. /aurora/%s/PKGBUILD && echo "${depends[@]}"`,
-			pkg,
-		),
-	)
+	err = build.cloud.StartContainer(container)
 	if err != nil {
-		return nil, ser.Errorf(
-			err, "can't source PKGBUILD",
+		return "", ser.Errorf(
+			err, "can't start container",
 		)
 	}
 
-	depends := []string{}
-	for _, line := range strings.Split(string(output), "\n") {
-		items := strings.Fields(line)
-		for _, item := range items {
-			if item != "" {
-				depends = append(
-					depends,
-					strings.Split(item, ">")[0],
-				)
-			}
-		}
+	build.log.Debug("building package")
+
+	build.cloud.WaitContainer(container)
+
+	err = build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
+
+	if err != nil {
+		build.log.Error(
+			ser.Errorf(
+				err, "can't write logs for container %s", build.container,
+			),
+		)
 	}
 
-	build.log.Debugf("dependencies for package %s: %q", pkg, depends)
-
-	names := []string{}
-	if len(depends) > 0 {
-		packages, err := aur.GetPackages(depends...)
-		if err != nil {
-			return nil, ser.Errorf(
-				err,
-				"can't obtain information about packages %q from AUR", depends,
-			)
-		}
-
-		for name, _ := range packages {
-			names = append(names, name)
-		}
-	}
-
-	build.log.Debugf("aur dependencies for package %s: %q", pkg, names)
-
-	return names, nil
-}
-
-func (build *build) exec(name string, arg ...string) ([]byte, error) {
-	cmd := lexec.New(
-		lexec.Loggerf(build.pkgLog.Tracef),
-		build.session.Command(name, arg...),
+	build.log.Debugf(
+		"container %s has been stopped",
+		build.container,
 	)
 
-	stdout, _, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	return stdout, nil
-}
-
-func extractPackageVersion(archive, base string) string {
-	extension := strings.LastIndex(archive, ".pkg")
-	if extension < 0 {
-		return ""
-	}
-
-	// remove prefix with package name, remove suffix .pkg{.tar,.tar.xz,}
-	version := archive[len(base+"-"):extension]
-
-	// remove suffix with architecture
-	suffix := strings.LastIndex(version, "-")
-	if suffix < 0 {
-		return version
-	}
-
-	version = version[:suffix]
-
-	return version
-}
-
-func copyFile(source, target string) (err error) {
-	sourceFile, err := os.OpenFile(source, os.O_RDONLY, 0600)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't open %s", source,
-		)
-	}
-
-	defer sourceFile.Close()
-
-	err = os.MkdirAll(filepath.Dir(target), 0775)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't mkdir %s", filepath.Dir(target),
-		)
-	}
-
-	targetFile, err := os.OpenFile(
-		target, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644,
-	)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't open %s", target,
-		)
-	}
-
-	defer func() {
-		closeErr := targetFile.Close()
-		if err == nil && closeErr != nil {
-			err = ser.Errorf(
-				err, "can't close %s", target,
-			)
-		}
-	}()
-
-	_, err = io.Copy(targetFile, sourceFile)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't copy contents",
-		)
-	}
-
-	err = targetFile.Sync()
-	if err != nil {
-		return ser.Errorf(
-			err, "can't sync %s", target,
-		)
-	}
-
-	return nil
-}
-
-func chown(path, value string) error {
-	command := exec.Command("chown", value, path)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf(
-			"chown %s %s failed (%s): %s", value, path, err, string(output),
-		)
-	}
-
-	return nil
-}
-
-func chmod(path, value string) error {
-	command := exec.Command("chmod", value, path)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf(
-			"chmod %s %s failed (%s): %s", value, path, err, string(output),
-		)
-	}
-
-	return nil
-}
-
-func cleanupDirectory(directory string) error {
-	cleanup := func(path string, info os.FileInfo, err error) error {
-		if os.IsNotExist(err) {
-			return nil
-		}
-
-		if err != nil {
-			return err
-		}
-
-		if path == directory {
-			return nil
-		}
-
-		return os.RemoveAll(path)
-	}
-
-	return filepath.Walk(directory, cleanup)
-}
-
-func fileExists(path ...string) bool {
-	_, err := os.Stat(filepath.Join(path...))
-	return !os.IsNotExist(err)
-}
-
-func hasPrefixURL(url string) bool {
-	return strings.Contains(url, "://")
+	return container, nil
 }

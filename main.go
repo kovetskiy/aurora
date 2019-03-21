@@ -3,16 +3,18 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"text/tabwriter"
 	"time"
 
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/aur-go"
 	"github.com/kovetskiy/godocs"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/colorgful"
-	"github.com/reconquest/faces"
-	"github.com/reconquest/karma-go"
+	karma "github.com/reconquest/karma-go"
 	"github.com/reconquest/ser-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -36,20 +38,10 @@ Options:
   -R --remove             Remove specified package from watch and make cycle queue.
   -P --process            Process watch and make cycle queue.
   -Q --query              Query package database.
-  -i --interface <link>   Network host interface that shall be used in containers system.
-                           [default: eth0]
   -t --threads <count>    Maximum amount of threads that can be used.
-                           [default: 4]
-  -d --database <path>    Path to place internal database file.
-                           [default: /var/lib/aurora/aurora.db].
+                           [default: 0]
   -l --logs <path>        Root directory to place build logs.
                            [default: /var/log/aurora/packages/]
-  -c --containers <path>  Root directory to place containers cloud.
-                           [default: /var/lib/aurora/cloud/]
-  -f --files <path>       Root directory that will be entirely copied into containers.
-                           [default: /etc/aurora/container/]
-  -s --filesystem <fs>    Pass specified option as hastur's filesystem.
-                           [default: autodetect].
   -r --repository <path>  Root directory to place aurora repository.
                            [default: /srv/http/aurora/]
   --debug                 Show debug messages.
@@ -87,7 +79,6 @@ func bootstrap(args map[string]interface{}) {
 	}
 
 	aur.SetLogger(logger)
-	faces.SetLogger(logger)
 }
 
 func main() {
@@ -95,27 +86,36 @@ func main() {
 
 	bootstrap(args)
 
-	database, err := openDatabase(args["--database"].(string))
+	database, err := NewDatabase("mongodb://localhost/aurora")
 	if err != nil {
 		fatalh(err, "can't open aurora database")
 	}
 
+	packages := database.C("packages")
+	err = packages.EnsureIndex(mgo.Index{
+		Key:    []string{"name"},
+		Unique: true,
+	})
+	if err != nil {
+		fatalh(err, "can't ensure index for collection")
+	}
+
 	switch {
 	case args["--add"].(bool):
-		err = addPackage(database, args["<package>"].([]string))
+		err = addPackage(packages, args["<package>"].([]string))
 
 	case args["--remove"].(bool):
-		err = removePackage(database, args["<package>"].([]string))
+		err = removePackage(packages, args["<package>"].([]string))
 
 	case args["--process"].(bool):
-		err = processQueue(database, args)
+		err = processQueue(packages, args)
 
 	case args["--query"].(bool):
-		err = queryPackage(database)
+		err = queryPackage(packages)
 
 	case args["--listen"].(bool):
 		err = serveWeb(
-			database,
+			packages,
 			args["<address>"].(string),
 			args["--repository"].(string),
 			args["--logs"].(string),
@@ -127,50 +127,54 @@ func main() {
 	}
 }
 
-func addPackage(db *database, packages []string) error {
+func addPackage(collection *mgo.Collection, packages []string) error {
+	var err error
+
 	for _, name := range packages {
-		db.set(
-			name,
-			pkg{Name: name, Status: "unknown", Date: time.Now()},
+		err = collection.Insert(
+			pkg{Name: name, Status: StatusUnknown, Date: time.Now()},
 		)
 
-		infof("package %s has been added", name)
-	}
-
-	debugf("saving database")
-
-	err := saveDatabase(db)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't save database",
-		)
+		if err == nil {
+			infof("package %s has been added", name)
+		} else if mgo.IsDup(err) {
+			warningf("package %s has not been added: already exists", name)
+		} else {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func removePackage(db *database, packages []string) error {
+func removePackage(collection *mgo.Collection, packages []string) error {
+	var err error
+
 	for _, name := range packages {
-		db.remove(name)
-
-		infof("package %s has been removed", name)
-	}
-
-	debugf("saving database")
-
-	err := saveDatabase(db)
-	if err != nil {
-		return ser.Errorf(
-			err, "can't save database",
+		err = collection.Remove(
+			bson.M{"name": name},
 		)
+
+		if err == nil {
+			infof("package %s has been removed", name)
+		} else if err == mgo.ErrNotFound {
+			warningf("package %s not found", name)
+		} else {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func queryPackage(db *database) error {
-	table := tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
-	for _, pkg := range db.getData() {
+func queryPackage(collection *mgo.Collection) error {
+	var (
+		pkg      = pkg{}
+		packages = collection.Find(bson.M{}).Iter()
+		table    = tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
+	)
+
+	for packages.Next(&pkg) {
 		fmt.Fprintf(
 			table,
 			"%s\t%s\t%s\t%s\n",
@@ -182,16 +186,16 @@ func queryPackage(db *database) error {
 	return table.Flush()
 }
 
-func processQueue(db *database, args map[string]interface{}) error {
+func processQueue(collection *mgo.Collection, args map[string]interface{}) error {
 	var (
-		cloudRoot       = args["--containers"].(string)
-		cloudFileSystem = args["--filesystem"].(string)
-		cloudNetwork    = args["--interface"].(string)
-		containersDir   = args["--files"].(string)
-		repositoryDir   = args["--repository"].(string)
-		logsDir         = args["--logs"].(string)
-		capacity        = argInt(args, "--threads")
+		repositoryDir = args["--repository"].(string)
+		logsDir       = args["--logs"].(string)
+		capacity      = argInt(args, "--threads")
 	)
+
+	if capacity == 0 {
+		capacity = runtime.NumCPU()
+	}
 
 	pool := threadpool.New()
 	pool.Spawn(capacity)
@@ -200,14 +204,14 @@ func processQueue(db *database, args map[string]interface{}) error {
 		"thread pool with %d threads has been spawned", capacity,
 	)
 
-	err = os.MkdirAll(repositoryDir, 0644)
+	err := os.MkdirAll(repositoryDir, 0644)
 	if err != nil {
 		return ser.Errorf(
 			err, "can't mkdir %s", repositoryDir,
 		)
 	}
 
-	err := os.MkdirAll(logsDir, 0755)
+	err = os.MkdirAll(logsDir, 0755)
 	if err != nil {
 		return karma.Format(
 			err,
@@ -216,34 +220,41 @@ func processQueue(db *database, args map[string]interface{}) error {
 	}
 
 	for {
-		err := db.sync()
-		if err != nil {
-			return ser.Errorf(
-				err, "can't synchronize database",
-			)
-		}
+		pkg := pkg{}
+		packages := collection.Find(bson.M{}).Iter()
 
-		debugf("database has been synchronized")
+		for packages.Next(&pkg) {
+			switch pkg.Status {
 
-		for name, pkg := range db.getData() {
-			tracef("pushing %s to thread pool queue", name)
+			case StatusProcessing:
+				if time.Since(pkg.Date).Hours() < 1 {
+					continue
+				}
+
+			case StatusSuccess:
+				if time.Since(pkg.Date).Hours() < 4 {
+					continue
+				}
+
+			case StatusFailure:
+				if time.Since(pkg.Date).Hours() < 1 {
+					continue
+				}
+			}
+
+			tracef("pushing %s to thread pool queue", pkg.Name)
 
 			pool.Push(
 				&build{
-					database:        db,
-					pkg:             pkg,
-					sourcesDir:      containersDir,
-					repositoryDir:   repositoryDir,
-					logsDir:         logsDir,
-					cloudNetwork:    cloudNetwork,
-					cloudRootDir:    cloudRoot,
-					cloudFileSystem: cloudFileSystem,
-					cloudQuietMode:  true,
+					collection:    collection,
+					pkg:           pkg,
+					repositoryDir: repositoryDir,
+					logsDir:       logsDir,
 				},
 			)
 		}
 
-		time.Sleep(time.Minute * 10)
+		time.Sleep(time.Second * 30)
 	}
 
 	return nil
