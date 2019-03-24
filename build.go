@@ -214,7 +214,7 @@ func (build *build) runContainer() (string, error) {
 	build.log.Debugf("creating container %s", build.container)
 
 	container, err := build.cloud.CreateContainer(
-		build.repoDir,
+		build.bufferDir,
 		build.container,
 		build.pkg.Name,
 	)

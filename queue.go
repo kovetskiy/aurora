@@ -101,7 +101,7 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 	pool.Spawn(capacity)
 
 	infof(
-		"thread pool with %d threads has been spawned for instance %s",
+		"thread pool with %d threads has been spawned for instance %q",
 		capacity, instance,
 	)
 

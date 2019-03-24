@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-yaml/yaml"
@@ -36,10 +37,10 @@ buffer_dir: "/var/aurora/buffer/"
 # threads to spawn for queue processing, 0 = num of cpu cores
 threads: 0
 
-intervals:
+interval:
   poll: "2s"
   build:
-    status_processing: "10m"
+    status_processing: "30m"
     status_success: "30m"
     status_failure: "60m"
 
@@ -73,7 +74,12 @@ type Config struct {
 }
 
 func GenerateConfig(path string) error {
-	err := ioutil.WriteFile(path, []byte(defaultConfig), 0600)
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(path, []byte(defaultConfig), 0600)
 	if err != nil {
 		return err
 	}
