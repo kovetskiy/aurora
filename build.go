@@ -9,14 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/client"
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/faces/execution"
+	"github.com/reconquest/karma-go"
 	"github.com/reconquest/lexec-go"
-	"github.com/reconquest/ser-go"
-	"github.com/theairkit/runcmd"
 )
 
 const (
@@ -28,22 +26,18 @@ type build struct {
 	collection *mgo.Collection
 	pkg        pkg
 
-	repositoryDir string
-	buildsDir     string
-	logsDir       string
+	instance  string
+	repoDir   string
+	bufferDir string
+	logsDir   string
 
-	cloud Cloud
+	cloud *Cloud
 
 	log *lorg.Log
 
 	container string
-	address   string
-	dir       string
 	ID        string
 	process   *execution.Operation
-
-	session runcmd.Runner
-	done    map[string]bool
 }
 
 var (
@@ -56,6 +50,7 @@ func (build *build) String() string {
 
 func (build *build) updateStatus(status string) {
 	build.pkg.Status = status
+	build.pkg.Instance = build.instance
 
 	err := build.collection.Update(
 		bson.M{"name": build.pkg.Name},
@@ -63,7 +58,7 @@ func (build *build) updateStatus(status string) {
 	)
 	if err != nil {
 		build.log.Error(
-			ser.Errorf(
+			karma.Format(
 				err, "can't update new package status",
 			),
 		)
@@ -74,20 +69,9 @@ func (build *build) updateStatus(status string) {
 }
 
 func (build *build) init() bool {
-	var err error
-
 	build.log = logger.NewChildWithPrefix(
 		fmt.Sprintf("(%s)", build.pkg.Name),
 	)
-
-	build.cloud = Cloud{}
-	build.cloud.client, err = client.NewEnvClient()
-	if err != nil {
-		build.log.Error(err)
-		return false
-	}
-
-	build.dir = "/build"
 
 	return true
 }
@@ -108,13 +92,28 @@ func (build *build) Process() {
 		return
 	}
 
-	build.log.Infof("package has been built: %s", archive)
-	build.log.Infof("adding archive %s to aurora repository", archive)
+	build.log.Infof("package is ready in buffer: %s", archive)
 
-	err = build.repoadd(archive)
+	repoPath := filepath.Join(build.repoDir, filepath.Base(archive))
+	err = os.Rename(archive, repoPath)
 	if err != nil {
 		build.log.Error(
-			ser.Errorf(
+			karma.Format(
+				err,
+				"unable to move file from buffer",
+			),
+		)
+
+		build.updateStatus("failure")
+		return
+	}
+
+	build.log.Infof("adding archive %s to aurora repository", repoPath)
+
+	err = build.repoadd(repoPath)
+	if err != nil {
+		build.log.Error(
+			karma.Format(
 				err, "can't update aurora repository",
 			),
 		)
@@ -129,7 +128,7 @@ func (build *build) repoadd(path string) error {
 
 	cmd := exec.Command(
 		"repo-add",
-		filepath.Join(build.repositoryDir, "aurora.db.tar"),
+		filepath.Join(build.repoDir, "aurora.db.tar"),
 		path,
 	)
 
@@ -150,18 +149,18 @@ func (build *build) build() (string, error) {
 
 	build.ID, err = build.runContainer()
 	if err != nil {
-		return "", ser.Errorf(
+		return "", karma.Format(
 			err, "can't run container for building package",
 		)
 	}
 
 	archives, err := filepath.Glob(
 		filepath.Join(
-			fmt.Sprintf("%s/%s*.pkg.*", build.repositoryDir, build.pkg.Name),
+			fmt.Sprintf("%s/%s*.pkg.*", build.bufferDir, build.pkg.Name),
 		),
 	)
 	if err != nil {
-		return "", ser.Errorf(
+		return "", karma.Format(
 			err, "can't stat built package archive",
 		)
 	}
@@ -199,7 +198,7 @@ func (build *build) shutdown() {
 		err := build.cloud.DestroyContainer(build.ID)
 		if err != nil {
 			build.log.Error(
-				ser.Errorf(
+				karma.Format(
 					err, "can't destroy container %s", build.ID,
 				),
 			)
@@ -215,10 +214,12 @@ func (build *build) runContainer() (string, error) {
 	build.log.Debugf("creating container %s", build.container)
 
 	container, err := build.cloud.CreateContainer(
-		build.repositoryDir, build.container, build.pkg.Name,
+		build.repoDir,
+		build.container,
+		build.pkg.Name,
 	)
 	if err != nil {
-		return "", ser.Errorf(
+		return "", karma.Format(
 			err, "can't create container",
 		)
 	}
@@ -229,7 +230,7 @@ func (build *build) runContainer() (string, error) {
 
 	err = build.cloud.StartContainer(container)
 	if err != nil {
-		return "", ser.Errorf(
+		return "", karma.Format(
 			err, "can't start container",
 		)
 	}
@@ -239,10 +240,9 @@ func (build *build) runContainer() (string, error) {
 	build.cloud.WaitContainer(container)
 
 	err = build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
-
 	if err != nil {
 		build.log.Error(
-			ser.Errorf(
+			karma.Format(
 				err, "can't write logs for container %s", build.container,
 			),
 		)

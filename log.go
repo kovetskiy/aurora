@@ -1,6 +1,6 @@
 package main
 
-import "github.com/reconquest/ser-go"
+import "github.com/reconquest/karma-go"
 
 func fatalf(format string, values ...interface{}) {
 	logger.Fatalf(format, values...)
@@ -43,13 +43,13 @@ func errorln(value interface{}) {
 }
 
 func fatalh(err error, format string, args ...interface{}) {
-	logger.Fatal(ser.Errorf(err, format, args...))
+	logger.Fatal(karma.Format(err, format, args...))
 }
 
 func warningh(err error, format string, args ...interface{}) {
-	logger.Warning(ser.Errorf(err, format, args...))
+	logger.Warning(karma.Format(err, format, args...))
 }
 
 func errorh(err error, format string, args ...interface{}) {
-	logger.Error(ser.Errorf(err, format, args...))
+	logger.Error(karma.Format(err, format, args...))
 }

@@ -1,5 +1,0 @@
-AuthorizedKeysFile .ssh/authorized_keys
-PermitRootLogin yes
-PermitEmptyPasswords yes
-ChallengeResponseAuthentication no
-UsePAM yes

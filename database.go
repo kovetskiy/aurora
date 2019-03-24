@@ -5,7 +5,6 @@ import (
 
 	"github.com/globalsign/mgo"
 	karma "github.com/reconquest/karma-go"
-	"gitlab.com/reconquest/lablab/log"
 )
 
 type Database struct {
@@ -16,10 +15,11 @@ type Database struct {
 }
 
 type pkg struct {
-	Name    string    `bson:"name"`
-	Version string    `bson:"version"`
-	Status  string    `bson:"status"`
-	Date    time.Time `bson:"date"`
+	Name     string    `bson:"name"`
+	Version  string    `bson:"version"`
+	Status   string    `bson:"status"`
+	Instance string    `bson:"instance"`
+	Date     time.Time `bson:"date"`
 }
 
 const (
@@ -27,6 +27,7 @@ const (
 	StatusFailure    = "failure"
 	StatusSuccess    = "success"
 	StatusProcessing = "processing"
+	StatusQueued     = "queued"
 )
 
 func NewDatabase(dsn string) (*Database, error) {
@@ -43,8 +44,7 @@ func NewDatabase(dsn string) (*Database, error) {
 }
 
 func (db *Database) connect() error {
-	log.Infof(
-		nil,
+	logger.Infof(
 		"connecting to db %q",
 		db.dsn,
 	)
@@ -60,7 +60,7 @@ func (db *Database) connect() error {
 		)
 	}
 
-	log.Infof(nil, "db connected | took %s", time.Since(started))
+	logger.Infof("db connected | took %s", time.Since(started))
 
 	db.session = session
 
@@ -75,19 +75,19 @@ func (db *Database) watch() {
 
 		err := db.session.Ping()
 		if err != nil {
-			log.Error(karma.Format(err, "unable to ping db"))
+			logger.Error(karma.Format(err, "unable to ping db"))
 		} else {
 			continue
 		}
 
-		log.Warning("db connection has gone away, trying to reconnect")
+		logger.Warning("db connection has gone away, trying to reconnect")
 
 		err = db.connect()
 		if err != nil {
-			log.Error(karma.Format(err, "can't establish db connection"))
+			logger.Error(karma.Format(err, "can't establish db connection"))
 			continue
 		}
 
-		log.Info("db connection has been re-established")
+		logger.Info("db connection has been re-established")
 	}
 }

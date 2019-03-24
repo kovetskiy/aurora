@@ -11,17 +11,33 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/reconquest/karma-go"
+)
+
+const (
+	ImageName = "aurora"
 )
 
 type Cloud struct {
 	client *client.Client
 }
 
+func NewCloud() (*Cloud, error) {
+	var err error
+
+	cloud := &Cloud{}
+	cloud.client, err = client.NewEnvClient()
+
+	return cloud, err
+}
+
 func (cloud *Cloud) CreateContainer(
-	repositoryDir string, containerName string, packageName string,
+	bufferDir string,
+	containerName string,
+	packageName string,
 ) (string, error) {
 	config := &container.Config{
-		Image: "aurora",
+		Image: ImageName,
 		Tty:   true,
 		Env: []string{
 			fmt.Sprintf("AURORA_PACKAGE=%s", packageName),
@@ -32,7 +48,7 @@ func (cloud *Cloud) CreateContainer(
 
 	hostConfig := &container.HostConfig{
 		Binds: []string{
-			fmt.Sprintf("%s:/aurora", repositoryDir),
+			fmt.Sprintf("%s:/buffer", bufferDir),
 		},
 	}
 
@@ -48,7 +64,8 @@ func (cloud *Cloud) CreateContainer(
 }
 
 func (cloud *Cloud) WaitContainer(name string) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute * 30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+	defer cancel()
 
 	wait, _ := cloud.client.ContainerWait(
 		ctx, name,
@@ -76,6 +93,9 @@ func (cloud *Cloud) StartContainer(container string) error {
 }
 
 func (cloud *Cloud) Query(container string) ([]interface{}, error) {
+	// what is the point of this method?
+	// @kovetskiy
+	// some leftovers after hastur?
 	result := []interface{}{}
 	return result, nil
 }
@@ -142,6 +162,47 @@ func (cloud *Cloud) WriteLogs(
 	if err != nil && err != io.EOF {
 		return err
 	}
+
+	return nil
+}
+
+func (cloud *Cloud) Cleanup() error {
+	options := types.ContainerListOptions{}
+
+	containers, err := cloud.client.ContainerList(
+		context.Background(),
+		options,
+	)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to list containers",
+		)
+	}
+
+	destroyed := 0
+	for _, container := range containers {
+		if container.Image == ImageName {
+			infof(
+				"cleanup: destroying container %q %q in status: %s",
+				container.ID,
+				container.Names,
+				container.Status,
+			)
+
+			err := cloud.DestroyContainer(container.ID)
+			if err != nil {
+				return karma.Describe("id", container.ID).Format(
+					err,
+					"unable to destroy container",
+				)
+			}
+
+			destroyed++
+		}
+	}
+
+	infof("cleanup: destroyed %d containers", destroyed)
 
 	return nil
 }
