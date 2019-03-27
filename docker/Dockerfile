@@ -17,8 +17,8 @@ COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 COPY /etc/passwd /etc/passwd
 COPY /etc/ssh/ssh_config /etc/ssh/ssh_config
 
-RUN pacman -Sy --noconfirm
-
 COPY /run.sh /app/run.sh
+
+RUN DOCKER_CACHE=$(date +%s) pacman -Sy --noconfirm
 
 CMD /app/run.sh
