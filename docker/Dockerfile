@@ -3,6 +3,9 @@ FROM archlinux/base
 COPY /base /base
 RUN yes | pacman -Sy $(cat /base)
 
+COPY /keys /keys
+RUN gpg --recv-keys $(cat /keys)
+
 RUN mkdir -p /app/build && \
     chgrp nobody /app/build && \
     chmod g+ws /app/build && \
