@@ -1,10 +1,10 @@
 FROM archlinux/base
 
 COPY /base /base
-RUN yes | pacman -Sy $(cat /base)
-
 COPY /keys /keys
-RUN gpg --recv-keys $(cat /keys)
+
+RUN DOCKER_CACHE=$(date +%s) yes | pacman -Sy $(cat /base)
+RUN DOCKER_CACHE=$(date +%s) gpg --recv-keys $(cat /keys)
 
 RUN mkdir -p /app/build && \
     chgrp nobody /app/build && \
