@@ -4,6 +4,7 @@ set -euo pipefail
 
 export PATH=$PATH:/usr/bin/core_perl
 
+buildtime=$(date +%s)
 pkg=${AURORA_PACKAGE}
 
 rm /var/lib/pacman/db.lck 2> /dev/null \
@@ -11,8 +12,12 @@ rm /var/lib/pacman/db.lck 2> /dev/null \
 
 sudo -u nobody mkdir /app/build/$pkg
 
-sudo -u nobody git clone https://aur.archlinux.org/$pkg.git /app/build/$pkg
+cd /app/build/$pkg
+sudo -u nobody git clone https://aur.archlinux.org/$pkg.git .
 
-cd /app/build/$pkg && sudo -u nobody -E makepkg --syncdeps --noconfirm
+sudo -u nobody -E makepkg --syncdeps --noconfirm
 
-cp -r /app/build/$pkg/*.pkg.* /buffer
+mkdir /buffer/$pkg
+find ./ -maxdepth 1 -type f -name '*.pkg.*' | while read filename; do
+    cp "${filename}" "/buffer/$pkg/${buildtime}.${filename}"
+done

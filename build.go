@@ -156,7 +156,7 @@ func (build *build) build() (string, error) {
 
 	archives, err := filepath.Glob(
 		filepath.Join(
-			fmt.Sprintf("%s/%s*.pkg.*", build.bufferDir, build.pkg.Name),
+			fmt.Sprintf("%s/%s/*.pkg.*", build.bufferDir, build.pkg.Name),
 		),
 	)
 	if err != nil {
