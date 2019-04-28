@@ -1,9 +1,7 @@
 # aurora
 
-Watch and compile AUR packages.
-
-Live example locates at aur.reconquest.io, so you can use it with following pacman
-configuration:
+Aurora watches for changes in Arch Linux User Repositories and makes packages,
+so you can download it without compiling stuff on your own machines.
 
 ```
 [aurora]
@@ -12,6 +10,5 @@ Server = http://aur.reconquest.io/$repo
 
 # todo
 
-- limit number of containers
-- rebuild image automatically
-- interactive logs
+- [ ] cleanup buffer
+- [ ] sign packages with gpg key
