@@ -4,3 +4,8 @@ local:
 remote:
 	$(if $(HOST),,$(error HOST is not set, do not forget about ssh:// scheme))
 	docker -H $(HOST) build -t aurora .
+
+push:
+	$(if $(TAG),,$(error TAG is not set))
+	docker tag aurora $(TAG)
+	docker push $(TAG)

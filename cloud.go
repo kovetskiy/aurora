@@ -14,19 +14,17 @@ import (
 	"github.com/reconquest/karma-go"
 )
 
-const (
-	ImageName = "aurora"
-)
-
 type Cloud struct {
-	client *client.Client
+	client    *client.Client
+	BaseImage string
 }
 
-func NewCloud() (*Cloud, error) {
+func NewCloud(baseImage string) (*Cloud, error) {
 	var err error
 
 	cloud := &Cloud{}
 	cloud.client, err = client.NewEnvClient()
+	cloud.BaseImage = baseImage
 
 	return cloud, err
 }
@@ -37,7 +35,7 @@ func (cloud *Cloud) CreateContainer(
 	packageName string,
 ) (string, error) {
 	config := &container.Config{
-		Image: ImageName,
+		Image: cloud.BaseImage,
 		Tty:   true,
 		Env: []string{
 			fmt.Sprintf("AURORA_PACKAGE=%s", packageName),
@@ -182,7 +180,7 @@ func (cloud *Cloud) Cleanup() error {
 
 	destroyed := 0
 	for _, container := range containers {
-		if container.Image == ImageName {
+		if container.Image == cloud.BaseImage {
 			infof(
 				"cleanup: destroying container %q %q in status: %s",
 				container.ID,

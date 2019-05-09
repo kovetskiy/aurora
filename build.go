@@ -95,6 +95,7 @@ func (build *build) Process() {
 	build.log.Infof("package is ready in buffer: %s", archive)
 
 	repoPath := filepath.Join(build.repoDir, filepath.Base(archive))
+
 	err = os.Rename(archive, repoPath)
 	if err != nil {
 		build.log.Error(

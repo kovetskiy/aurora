@@ -46,6 +46,8 @@ interval:
 
 timeout:
   build: "30m"
+
+base_image: "aurora"
 `
 
 type Config struct {
@@ -58,6 +60,7 @@ type Config struct {
 	LogsDir   string `yaml:"logs_dir" required:"true"`
 	BufferDir string `yaml:"buffer_dir" required:"true"`
 	Threads   int    `yaml:"threads"`
+	BaseImage string `yaml:"base_image" required:"true"`
 
 	Interval struct {
 		Poll  time.Duration `yaml:"poll" required:"true"`

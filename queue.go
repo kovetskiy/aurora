@@ -115,7 +115,7 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 		return err
 	}
 
-	cloud, err := NewCloud()
+	cloud, err := NewCloud(config.BaseImage)
 	if err != nil {
 		return karma.Format(
 			err,
