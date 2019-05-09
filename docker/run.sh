@@ -18,6 +18,6 @@ sudo -u nobody git clone https://aur.archlinux.org/$pkg.git .
 sudo -u nobody -E makepkg --syncdeps --noconfirm
 
 mkdir /buffer/$pkg
-find ./ -maxdepth 1 -type f -name '*.pkg.*' | while read filename; do
+find ./ -maxdepth 1 -type f -name '*.pkg.*' -printf '%P\n' | while read filename; do
     cp "${filename}" "/buffer/$pkg/${buildtime}.${filename}"
 done
