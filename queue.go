@@ -176,6 +176,7 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 					repoDir:    repoDir,
 					bufferDir:  bufferDir,
 					logsDir:    logsDir,
+					config:     config,
 				},
 			)
 		}
