@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -173,10 +172,6 @@ func (build *build) cleanup() error {
 		basename := filepath.Base(fullpath)
 
 		matches := reArchiveFilename.FindStringSubmatch(basename)
-		{
-			marshaledXXX, _ := json.MarshalIndent(matches, "", "  ")
-			fmt.Printf("matches: %s\n", string(marshaledXXX))
-		}
 
 		name := regexputil.Subexp(reArchiveFilename, matches, "name")
 		if name != build.pkg.Name {
