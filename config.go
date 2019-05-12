@@ -37,20 +37,32 @@ buffer_dir: "/var/aurora/buffer/"
 # threads to spawn for queue processing, 0 = num of cpu cores
 threads: 0
 
+# instance name (used for following logs)
+instance: "$HOSTNAME"
+
 interval:
+  # how often should poll queue
   poll: "2s"
   build:
+    # rebuild if stuck in processing more than specified time
     status_processing: "30m"
+    # rebuild if succeeded more than specified time
     status_success: "30m"
+    # rebuild if failed more than specified time
     status_failure: "60m"
 
 timeout:
+  # give up building process
   build: "30m"
 
+# image used for building pkgs
 base_image: "aurora"
 
+# settings for cleaning up disk space in repository
 history:
+	# how many different pkgver-pkgrel combination can exist
 	versions: 3
+	# same version can have different checksums (for whatever reasons)
 	builds_per_version: 3
 `
 
@@ -62,6 +74,7 @@ type Config struct {
 	Debug bool
 	Trace bool
 
+	Instance  string        `yaml:"instance" required:"true"`
 	Listen    string        `required:"true"`
 	Database  string        `required:"true"`
 	RepoDir   string        `yaml:"repo_dir" required:"true"`
@@ -114,6 +127,15 @@ func GetConfig(path string) (*Config, error) {
 		}
 
 		err = ko.Load(path, &config, yaml.Unmarshal)
+	}
+
+	if config.Instance == "$HOSTNAME" {
+		instance, err := os.Hostname()
+		if err != nil {
+			return nil, karma.Format(err, "unable to get hostname")
+		}
+
+		config.Instance = instance
 	}
 
 	return &config, err

@@ -8,7 +8,7 @@ import (
 	"github.com/reconquest/karma-go"
 )
 
-type PackageService struct {
+type RPCPackageService struct {
 	collection *mgo.Collection
 	config     *Config
 }
@@ -29,14 +29,14 @@ type ResponseGetPackage struct {
 	Package *Package `json:"package"`
 }
 
-func NewPackageService(collection *mgo.Collection, config *Config) *PackageService {
-	return &PackageService{
+func NewRPCPackageService(collection *mgo.Collection, config *Config) *RPCPackageService {
+	return &RPCPackageService{
 		collection: collection,
 		config:     config,
 	}
 }
 
-func (service *PackageService) ListPackages(
+func (service *RPCPackageService) ListPackages(
 	source *http.Request,
 	request *RequestListPackages,
 	response *ResponseListPackages,
@@ -52,7 +52,7 @@ func (service *PackageService) ListPackages(
 	return nil
 }
 
-func (service *PackageService) GetPackage(
+func (service *RPCPackageService) GetPackage(
 	source *http.Request,
 	request *RequestGetPackage,
 	response *ResponseGetPackage,

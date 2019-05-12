@@ -1,11 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
-
-	"github.com/gorilla/rpc"
-	"github.com/gorilla/rpc/json"
 
 	"github.com/globalsign/mgo"
 	"github.com/go-chi/chi"
@@ -17,16 +13,11 @@ const (
 )
 
 type Web struct {
-	collection *mgo.Collection
-	config     *Config
-	static     http.Handler
+	static http.Handler
 }
 
 func serveWeb(collection *mgo.Collection, config *Config) error {
-	web := &Web{
-		collection: collection,
-		config:     config,
-	}
+	web := &Web{}
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -34,38 +25,21 @@ func serveWeb(collection *mgo.Collection, config *Config) error {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	web.initStatic()
+	web.initStatic(config)
+
 	router.Get(staticPrefix+"/*", web.static.ServeHTTP)
 
-	server := rpc.NewServer()
-	server.RegisterCodec(json.NewCodec(), "application/json")
-
-	server.RegisterService(
-		NewPackageService(collection, config),
-		"PackageService",
-	)
-
-	server.RegisterService(
-		NewLogsService(collection, config),
-		"LogsService",
-	)
-
-	router.Post("/rpc/", server.ServeHTTP)
-	router.Get("/rpc/", server.ServeHTTP)
+	rpc := NewRPCServer(collection, config)
+	router.Post("/rpc/", rpc.ServeHTTP)
 
 	infof("listening at %s", config.Listen)
 
 	return http.ListenAndServe(config.Listen, router)
 }
 
-func (web *Web) initStatic() {
+func (web *Web) initStatic(config *Config) {
 	web.static = http.StripPrefix(
 		staticPrefix,
-		http.FileServer(http.Dir(web.config.RepoDir)),
+		http.FileServer(http.Dir(config.RepoDir)),
 	)
-}
-
-func (web *Web) Error(writer http.ResponseWriter, err error) {
-	writer.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintln(writer, err.Error())
 }

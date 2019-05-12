@@ -11,7 +11,7 @@ import (
 	"github.com/reconquest/karma-go"
 )
 
-type LogsService struct {
+type RPCLogsService struct {
 	collection *mgo.Collection
 	config     *Config
 }
@@ -24,14 +24,22 @@ type ResponseGetLogs struct {
 	Logs string `json:"logs"`
 }
 
-func NewLogsService(collection *mgo.Collection, config *Config) *LogsService {
-	return &LogsService{
+type RequestFollowLogs struct {
+	Name string `json:"name"`
+}
+
+type ResponseFollowLogs struct {
+	Stream string `json:"stream"`
+}
+
+func NewRPCLogsService(collection *mgo.Collection, config *Config) *RPCLogsService {
+	return &RPCLogsService{
 		collection: collection,
 		config:     config,
 	}
 }
 
-func (service *LogsService) GetLogs(
+func (service *RPCLogsService) GetLogs(
 	source *http.Request,
 	request *RequestGetLogs,
 	response *ResponseGetLogs,
@@ -59,6 +67,27 @@ func (service *LogsService) GetLogs(
 	}
 
 	response.Logs = string(contents)
+
+	return nil
+}
+
+func (service *RPCLogsService) FollowLogs(
+	source *http.Request,
+	request *RequestFollowLogs,
+	response *ResponseFollowLogs,
+) error {
+	var pkg Package
+	err := service.collection.Find(
+		bson.M{"name": request.Name},
+	).One(&pkg)
+	if err == mgo.ErrNotFound {
+		return nil
+	}
+
+	// here can be complex logic with retrieving address of processor,
+	address := "ws://" + pkg.Instance + ":" + "9999" + "/?package=" + request.Name
+
+	response.Stream = address
 
 	return nil
 }

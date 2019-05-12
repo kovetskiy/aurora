@@ -13,7 +13,6 @@ import (
 )
 
 func prepareDirs(
-	instance string,
 	config *Config,
 ) (repoDir, bufferDir, logsDir string, err error) {
 	repoDir, err = filepath.Abs(config.RepoDir)
@@ -22,7 +21,7 @@ func prepareDirs(
 	}
 
 	bufferDir, err = filepath.Abs(
-		filepath.Join(config.BufferDir, instance),
+		filepath.Join(config.BufferDir, config.Instance),
 	)
 	if err != nil {
 		return "", "", "", err
@@ -84,42 +83,26 @@ func cleanupQueue(instance string, collection *mgo.Collection) error {
 }
 
 func processQueue(collection *mgo.Collection, config *Config) error {
-	instance, err := os.Hostname()
+	pool := spawnThreadpool(config.Instance, config.Threads)
+
+	repoDir, bufferDir, logsDir, err := prepareDirs(config)
+	if err != nil {
+		return err
+	}
+
+	err = cleanupQueue(config.Instance, collection)
 	if err != nil {
 		return karma.Format(
 			err,
-			"unable to get hostname",
+			"unable to cleanup queue",
 		)
-	}
-
-	capacity := config.Threads
-	if capacity == 0 {
-		capacity = runtime.NumCPU()
-	}
-
-	pool := threadpool.New()
-	pool.Spawn(capacity)
-
-	infof(
-		"thread pool with %d threads has been spawned for instance %q",
-		capacity, instance,
-	)
-
-	repoDir, bufferDir, logsDir, err := prepareDirs(instance, config)
-	if err != nil {
-		return err
-	}
-
-	err = cleanupQueue(instance, collection)
-	if err != nil {
-		return err
 	}
 
 	cloud, err := NewCloud(config.BaseImage)
 	if err != nil {
 		return karma.Format(
 			err,
-			"unable to init cloud client",
+			"unable to init cloud (docker) client",
 		)
 	}
 
@@ -169,7 +152,7 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 
 			pool.Push(
 				&build{
-					instance:      instance,
+					instance:      config.Instance,
 					cloud:         cloud,
 					collection:    collection,
 					pkg:           pkg,
@@ -183,4 +166,21 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 
 		time.Sleep(config.Interval.Poll)
 	}
+}
+
+func spawnThreadpool(instance string, size int) *threadpool.ThreadPool {
+	capacity := size
+	if capacity == 0 {
+		capacity = runtime.NumCPU()
+	}
+
+	pool := threadpool.New()
+	pool.Spawn(capacity)
+
+	infof(
+		"thread pool with %d threads has been spawned as instance %q",
+		capacity, instance,
+	)
+
+	return pool
 }
