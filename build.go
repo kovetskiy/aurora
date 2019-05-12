@@ -43,13 +43,13 @@ const (
 
 type build struct {
 	collection *mgo.Collection
-	pkg        pkg
+	pkg        Package
 
-	instance  string
-	repoDir   string
-	bufferDir string
-	logsDir   string
-	config    *Config
+	instance      string
+	repoDir       string
+	bufferDir     string
+	logsDir       string
+	configHistory ConfigHistory
 
 	cloud *Cloud
 
@@ -193,8 +193,8 @@ func (build *build) cleanup() error {
 	}
 
 	trash := []string{}
-	if len(versions) > build.config.History.Versions {
-		max := build.config.History.Versions
+	if len(versions) > build.configHistory.Versions {
+		max := build.configHistory.Versions
 
 		sort.Sort(sort.StringSlice(versions))
 
@@ -208,7 +208,7 @@ func (build *build) cleanup() error {
 	}
 
 	for _, archives := range builds {
-		if len(archives) <= build.config.History.BuildsPerVersion {
+		if len(archives) <= build.configHistory.BuildsPerVersion {
 			continue
 		}
 
@@ -216,7 +216,7 @@ func (build *build) cleanup() error {
 			return archives[i].Time < archives[j].Time
 		})
 
-		for _, archive := range archives[build.config.History.BuildsPerVersion:] {
+		for _, archive := range archives[build.configHistory.BuildsPerVersion:] {
 			trash = append(trash, archive.Basename)
 		}
 	}

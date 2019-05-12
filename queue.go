@@ -132,7 +132,7 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 	}
 
 	for {
-		pkg := pkg{}
+		pkg := Package{}
 		packages := collection.Find(bson.M{}).Iter()
 
 		for packages.Next(&pkg) {
@@ -165,18 +165,18 @@ func processQueue(collection *mgo.Collection, config *Config) error {
 				continue
 			}
 
-			tracef("pushing %s to thread pool queue", pkg.Name)
+			debugf("pushing %s to thread pool queue", pkg.Name)
 
 			pool.Push(
 				&build{
-					instance:   instance,
-					cloud:      cloud,
-					collection: collection,
-					pkg:        pkg,
-					repoDir:    repoDir,
-					bufferDir:  bufferDir,
-					logsDir:    logsDir,
-					config:     config,
+					instance:      instance,
+					cloud:         cloud,
+					collection:    collection,
+					pkg:           pkg,
+					repoDir:       repoDir,
+					bufferDir:     bufferDir,
+					logsDir:       logsDir,
+					configHistory: config.History,
 				},
 			)
 		}

@@ -54,21 +54,22 @@ history:
 	builds_per_version: 3
 `
 
+type ConfigHistory struct {
+	Versions         int `yaml:"versions" required:"true"`
+	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
+}
 type Config struct {
 	Debug bool
 	Trace bool
 
-	Listen    string `required:"true"`
-	Database  string `required:"true"`
-	RepoDir   string `yaml:"repo_dir" required:"true"`
-	LogsDir   string `yaml:"logs_dir" required:"true"`
-	BufferDir string `yaml:"buffer_dir" required:"true"`
-	Threads   int    `yaml:"threads"`
-	BaseImage string `yaml:"base_image" required:"true"`
-	History   struct {
-		Versions         int `yaml:"versions" required:"true"`
-		BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
-	} `required:"true"`
+	Listen    string        `required:"true"`
+	Database  string        `required:"true"`
+	RepoDir   string        `yaml:"repo_dir" required:"true"`
+	LogsDir   string        `yaml:"logs_dir" required:"true"`
+	BufferDir string        `yaml:"buffer_dir" required:"true"`
+	Threads   int           `yaml:"threads"`
+	BaseImage string        `yaml:"base_image" required:"true"`
+	History   ConfigHistory `required:"true"`
 
 	Interval struct {
 		Poll  time.Duration `yaml:"poll" required:"true"`

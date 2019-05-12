@@ -130,7 +130,7 @@ func addPackage(collection *mgo.Collection, packages []string) error {
 
 	for _, name := range packages {
 		err = collection.Insert(
-			pkg{Name: name, Status: StatusUnknown, Date: time.Now()},
+			Package{Name: name, Status: StatusUnknown, Date: time.Now()},
 		)
 
 		if err == nil {
@@ -167,7 +167,7 @@ func removePackage(collection *mgo.Collection, packages []string) error {
 
 func queryPackage(collection *mgo.Collection) error {
 	var (
-		pkg      = pkg{}
+		pkg      = Package{}
 		packages = collection.Find(bson.M{}).Iter()
 		table    = tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
 	)
