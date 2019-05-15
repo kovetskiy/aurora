@@ -15,10 +15,5 @@ func NewRPCServer(collection *mgo.Collection, config *Config) *rpc.Server {
 		"PackageService",
 	)
 
-	server.RegisterService(
-		NewRPCLogsService(collection, config),
-		"LogsService",
-	)
-
 	return server
 }

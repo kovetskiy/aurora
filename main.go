@@ -130,7 +130,11 @@ func addPackage(collection *mgo.Collection, packages []string) error {
 
 	for _, name := range packages {
 		err = collection.Insert(
-			Package{Name: name, Status: StatusUnknown, Date: time.Now()},
+			Package{
+				Name: name,
+				Status: BuildStatusQueued.String(),
+				Date: time.Now(),
+			},
 		)
 
 		if err == nil {

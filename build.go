@@ -42,8 +42,8 @@ const (
 )
 
 type build struct {
-	collection *mgo.Collection
-	pkg        Package
+	storage *mgo.Collection
+	pkg     Package
 
 	instance      string
 	repoDir       string
@@ -58,6 +58,7 @@ type build struct {
 	container string
 	ID        string
 	process   *execution.Operation
+	bus       *Bus
 }
 
 var (
@@ -68,11 +69,13 @@ func (build *build) String() string {
 	return build.pkg.Name
 }
 
-func (build *build) updateStatus(status string) {
-	build.pkg.Status = status
+func (build *build) updateStatus(status BuildStatus) {
+	build.pkg.Status = status.String()
 	build.pkg.Instance = build.instance
 
-	err := build.collection.Update(
+	build.bus.Publish(build.pkg.Name, status)
+
+	err := build.storage.Update(
 		bson.M{"name": build.pkg.Name},
 		build.pkg,
 	)
@@ -104,13 +107,13 @@ func (build *build) Process() {
 	build.cleanup()
 
 	build.pkg.Date = time.Now()
-	build.updateStatus("processing")
+	build.updateStatus(BuildStatusProcessing)
 
 	archive, err := build.build()
 	if err != nil {
 		build.log.Error(err)
 
-		build.updateStatus("failure")
+		build.updateStatus(BuildStatusFailure)
 		return
 	}
 
@@ -127,7 +130,7 @@ func (build *build) Process() {
 			),
 		)
 
-		build.updateStatus("failure")
+		build.updateStatus(BuildStatusFailure)
 		return
 	}
 
@@ -140,12 +143,12 @@ func (build *build) Process() {
 				err, "can't update aurora repository",
 			),
 		)
-		build.updateStatus("failure")
+		build.updateStatus(BuildStatusFailure)
 
 		return
 	}
 
-	build.updateStatus("success")
+	build.updateStatus(BuildStatusSuccess)
 
 }
 

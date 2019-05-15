@@ -82,7 +82,11 @@ type Config struct {
 	BufferDir string        `yaml:"buffer_dir" required:"true"`
 	Threads   int           `yaml:"threads"`
 	BaseImage string        `yaml:"base_image" required:"true"`
-	History   ConfigHistory `required:"true"`
+	History   ConfigHistory `yaml:"history" required:"true"`
+
+	Bus struct {
+		Listen string `yaml:"listen" required:"true"`
+	} `required:"true"`
 
 	Interval struct {
 		Poll  time.Duration `yaml:"poll" required:"true"`

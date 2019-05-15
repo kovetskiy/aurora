@@ -22,14 +22,6 @@ type Package struct {
 	Date     time.Time `bson:"date" json:"date"`
 }
 
-const (
-	StatusUnknown    = "unknown"
-	StatusFailure    = "failure"
-	StatusSuccess    = "success"
-	StatusProcessing = "processing"
-	StatusQueued     = "queued"
-)
-
 func NewDatabase(dsn string) (*Database, error) {
 	db := &Database{dsn: dsn}
 

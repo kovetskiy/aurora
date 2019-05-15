@@ -1,7 +1,10 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
@@ -27,6 +30,22 @@ type RequestGetPackage struct {
 
 type ResponseGetPackage struct {
 	Package *Package `json:"package"`
+}
+
+type RequestGetLogs struct {
+	Name string `json:"name"`
+}
+
+type ResponseGetLogs struct {
+	Logs string `json:"logs"`
+}
+
+type RequestGetBus struct {
+	Name string `json:"name"`
+}
+
+type ResponseGetBus struct {
+	Stream string `json:"stream"`
 }
 
 func NewRPCPackageService(collection *mgo.Collection, config *Config) *RPCPackageService {
@@ -70,6 +89,59 @@ func (service *RPCPackageService) GetPackage(
 			"unable to find package in database",
 		)
 	}
+
+	return nil
+}
+
+func (service *RPCPackageService) GetLogs(
+	source *http.Request,
+	request *RequestGetLogs,
+	response *ResponseGetLogs,
+) error {
+	var pkg Package
+	err := service.collection.Find(
+		bson.M{"name": request.Name},
+	).One(&pkg)
+	if err == mgo.ErrNotFound {
+		return nil
+	}
+
+	contents, err := ioutil.ReadFile(
+		filepath.Join(service.config.LogsDir, pkg.Name),
+	)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		return karma.Format(
+			err,
+			"unable to read logs file",
+		)
+	}
+
+	response.Logs = string(contents)
+
+	return nil
+}
+
+func (service *RPCPackageService) GetBus(
+	source *http.Request,
+	request *RequestGetBus,
+	response *ResponseGetBus,
+) error {
+	var pkg Package
+	err := service.collection.Find(
+		bson.M{"name": request.Name},
+	).One(&pkg)
+	if err == mgo.ErrNotFound {
+		return nil
+	}
+
+	// here can be complex logic with retrieving address of processor,
+	address := "ws://" + pkg.Instance + ":" + "9999" + "/?package=" + request.Name
+
+	response.Stream = address
 
 	return nil
 }
