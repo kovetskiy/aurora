@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -9,6 +10,10 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/reconquest/karma-go"
+)
+
+var (
+	DefaultBusServerPort = 4242
 )
 
 type RPCPackageService struct {
@@ -141,8 +146,13 @@ func (service *RPCPackageService) GetBus(
 		return nil
 	}
 
-	// here can be complex logic with retrieving address of processor,
-	address := "ws://" + pkg.Instance + ":" + "9999" + "/?package=" + request.Name
+	// here can be complex logic with retrieving address of processor
+	address := fmt.Sprintf(
+		"ws://%s:%d/?package=%s",
+		pkg.Instance,
+		DefaultBusServerPort,
+		request.Name,
+	)
 
 	response.Stream = address
 

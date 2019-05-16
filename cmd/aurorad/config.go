@@ -64,6 +64,10 @@ history:
 	versions: 3
 	# same version can have different checksums (for whatever reasons)
 	builds_per_version: 3
+
+# bus server is an event pubsub system inside of aurorad
+bus:
+	listen: ":4242"
 `
 
 type ConfigHistory struct {
