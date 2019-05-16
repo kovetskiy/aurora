@@ -2,7 +2,7 @@
 Description=Daemon for processing aurora packages
 
 [Service]
-ExecStart=/usr/bin/aurora -P
+ExecStart=/usr/bin/aurorad -P
 Restart=always
 
 [Install]

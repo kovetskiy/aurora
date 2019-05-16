@@ -13,23 +13,23 @@ version:
 	@echo $(VERSION)
 
 test:
-	$(GOFLAGS) go test -failfast -v
+	$(GOFLAGS) go test -failfast -v ./cmd/...
 
 get:
-	$(GOFLAGS) go get -v -d
+	$(GOFLAGS) go get -v -d -v ./cmd/...
 
-build:
+build@%:
 	$(GOFLAGS) go build \
 		 -ldflags="-s -w -X main.version=$(VERSION)" \
-		 -gcflags="-trimpath=$(GOPATH)"
+		 -gcflags="-trimpath=$(GOPATH)" ./cmd/$*
 
-dist: build
+dist@aurorad: build@aurorad
 	mkdir -p dist/usr/lib/systemd/system/
 	mkdir -p dist/usr/bin/
-	cp $(NAME) dist/usr/bin/
+	cp aurorad dist/usr/bin/
 	cp systemd/* dist/usr/lib/systemd/system
 
-release: clean dist
+release@aurorad: clean dist@aurorad
 	$(if $(HOST),,$(error HOST is not set))
 	@echo :: releasing version $(VERSION)
 	@echo :: stopping aurora on server
@@ -44,4 +44,4 @@ release: clean dist
 
 clean:
 	rm -rf dist
-	rm -rf $(NAME)
+	rm -rf aurorad aurora

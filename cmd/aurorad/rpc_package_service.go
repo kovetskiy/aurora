@@ -48,7 +48,10 @@ type ResponseGetBus struct {
 	Stream string `json:"stream"`
 }
 
-func NewRPCPackageService(collection *mgo.Collection, config *Config) *RPCPackageService {
+func NewRPCPackageService(
+	collection *mgo.Collection,
+	config *Config,
+) *RPCPackageService {
 	return &RPCPackageService{
 		collection: collection,
 		config:     config,

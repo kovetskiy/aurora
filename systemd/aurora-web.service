@@ -2,7 +2,7 @@
 Description=Listener for distributing aurora repository
 
 [Service]
-ExecStart=/usr/bin/aurora -L
+ExecStart=/usr/bin/aurorad -L
 Restart=always
 
 [Install]
