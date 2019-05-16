@@ -78,6 +78,38 @@ func (cloud *Cloud) WaitContainer(name string) {
 	}
 }
 
+func (cloud *Cloud) FollowLogs(container string, send func(string)) error {
+	reader, err := cloud.client.ContainerLogs(
+		context.Background(), container, types.ContainerLogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+			Tail:       "all",
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	defer reader.Close()
+
+	buffer := make([]byte, 1024)
+	for {
+		size, err := reader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return err
+		}
+
+		send(string(buffer[:size]))
+	}
+
+	return nil
+}
+
 func (cloud *Cloud) StartContainer(container string) error {
 	err := cloud.client.ContainerStart(
 		context.Background(), container,
@@ -155,6 +187,8 @@ func (cloud *Cloud) WriteLogs(
 	if err != nil {
 		return err
 	}
+
+	defer reader.Close()
 
 	_, err = io.Copy(logfile, reader)
 	if err != nil && err != io.EOF {

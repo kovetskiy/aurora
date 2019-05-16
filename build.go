@@ -377,7 +377,22 @@ func (build *build) runContainer() (string, error) {
 
 	build.log.Debug("building package")
 
-	build.cloud.WaitContainer(container)
+	routines := &sync.WaitGroup{}
+	routines.Add(1)
+	go func() {
+		defer routines.Done()
+		build.cloud.WaitContainer(container)
+	}()
+
+	routines.Add(1)
+	go func() {
+		defer routines.Done()
+		build.cloud.FollowLogs(container, func(data string) {
+			build.bus.Publish(build.pkg.Name, data)
+		})
+	}()
+
+	routines.Wait()
 
 	err = build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
 	if err != nil {
