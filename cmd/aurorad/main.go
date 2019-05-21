@@ -10,6 +10,7 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/aur-go"
+	"github.com/kovetskiy/aurora/pkg/aurora"
 	"github.com/kovetskiy/lorg"
 )
 
@@ -130,10 +131,10 @@ func addPackage(collection *mgo.Collection, packages []string) error {
 
 	for _, name := range packages {
 		err = collection.Insert(
-			Package{
-				Name: name,
+			aurora.Package{
+				Name:   name,
 				Status: BuildStatusQueued.String(),
-				Date: time.Now(),
+				Date:   time.Now(),
 			},
 		)
 
@@ -171,7 +172,7 @@ func removePackage(collection *mgo.Collection, packages []string) error {
 
 func queryPackage(collection *mgo.Collection) error {
 	var (
-		pkg      = Package{}
+		pkg      = aurora.Package{}
 		packages = collection.Find(bson.M{}).Iter()
 		table    = tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
 	)

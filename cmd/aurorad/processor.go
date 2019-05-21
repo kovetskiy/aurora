@@ -8,6 +8,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/kovetskiy/aurora/pkg/aurora"
 	"github.com/reconquest/karma-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -73,7 +74,7 @@ func (proc *Processor) Init() error {
 
 func (proc *Processor) Process() {
 	for {
-		pkg := Package{}
+		pkg := aurora.Package{}
 		packages := proc.storage.Find(bson.M{}).Iter()
 
 		for packages.Next(&pkg) {
