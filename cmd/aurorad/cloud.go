@@ -221,7 +221,7 @@ func (cloud *Cloud) Cleanup() error {
 
 	destroyed := 0
 	for _, container := range containers {
-		if _, ok := container.Labels[ImageLabelKey]; ok {
+		if _, ours := container.Labels[ImageLabelKey]; ours {
 			infof(
 				"cleanup: destroying container %q %q in status: %s",
 				container.ID,
