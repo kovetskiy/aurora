@@ -75,9 +75,13 @@ func (proc *Processor) Init() error {
 func (proc *Processor) Process() {
 	for {
 		pkg := aurora.Package{}
-		packages := proc.storage.Find(bson.M{}).Iter()
 
-		for packages.Next(&pkg) {
+		iterator := proc.storage.
+			Find(bson.M{}).
+			Sort("-priority").
+			Iter()
+
+		for iterator.Next(&pkg) {
 			var since time.Duration
 			var interval time.Duration
 			var canSkip bool
