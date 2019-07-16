@@ -1,4 +1,4 @@
-package main
+package proto
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/kovetskiy/aurora/pkg/aurora"
 	"github.com/reconquest/karma-go"
 )
 
@@ -16,9 +17,9 @@ var (
 	DefaultBusServerPort = 4242
 )
 
-type RPCPackageService struct {
+type PackageService struct {
 	collection *mgo.Collection
-	config     *Config
+	logsDir    string
 }
 
 type RequestListPackages struct {
@@ -26,7 +27,7 @@ type RequestListPackages struct {
 }
 
 type ResponseListPackages struct {
-	Packages []Package `json:"packages"`
+	Packages []aurora.Package `json:"packages"`
 }
 
 type RequestGetPackage struct {
@@ -34,7 +35,7 @@ type RequestGetPackage struct {
 }
 
 type ResponseGetPackage struct {
-	Package *Package `json:"package"`
+	Package *aurora.Package `json:"package"`
 }
 
 type RequestGetLogs struct {
@@ -53,17 +54,17 @@ type ResponseGetBus struct {
 	Stream string `json:"stream"`
 }
 
-func NewRPCPackageService(
+func NewPackageService(
 	collection *mgo.Collection,
-	config *Config,
-) *RPCPackageService {
-	return &RPCPackageService{
+	logsDir string,
+) *PackageService {
+	return &PackageService{
 		collection: collection,
-		config:     config,
+		logsDir:    logsDir,
 	}
 }
 
-func (service *RPCPackageService) ListPackages(
+func (service *PackageService) ListPackages(
 	source *http.Request,
 	request *RequestListPackages,
 	response *ResponseListPackages,
@@ -79,7 +80,7 @@ func (service *RPCPackageService) ListPackages(
 	return nil
 }
 
-func (service *RPCPackageService) GetPackage(
+func (service *PackageService) GetPackage(
 	source *http.Request,
 	request *RequestGetPackage,
 	response *ResponseGetPackage,
@@ -101,12 +102,12 @@ func (service *RPCPackageService) GetPackage(
 	return nil
 }
 
-func (service *RPCPackageService) GetLogs(
+func (service *PackageService) GetLogs(
 	source *http.Request,
 	request *RequestGetLogs,
 	response *ResponseGetLogs,
 ) error {
-	var pkg Package
+	var pkg aurora.Package
 	err := service.collection.Find(
 		bson.M{"name": request.Name},
 	).One(&pkg)
@@ -115,7 +116,7 @@ func (service *RPCPackageService) GetLogs(
 	}
 
 	contents, err := ioutil.ReadFile(
-		filepath.Join(service.config.LogsDir, pkg.Name),
+		filepath.Join(service.logsDir, pkg.Name),
 	)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -133,12 +134,12 @@ func (service *RPCPackageService) GetLogs(
 	return nil
 }
 
-func (service *RPCPackageService) GetBus(
+func (service *PackageService) GetBus(
 	source *http.Request,
 	request *RequestGetBus,
 	response *ResponseGetBus,
 ) error {
-	var pkg Package
+	var pkg aurora.Package
 	err := service.collection.Find(
 		bson.M{"name": request.Name},
 	).One(&pkg)

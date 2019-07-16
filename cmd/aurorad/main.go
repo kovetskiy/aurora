@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -10,22 +11,23 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/aur-go"
+	"github.com/kovetskiy/aurora/pkg/aurora"
 	"github.com/kovetskiy/lorg"
 )
 
 var (
 	version = "[manual build]"
-	usage   = "aurora " + version + `
+	usage   = "aurorad " + version + `
 
 Usage:
-  aurora [options] -L
-  aurora [options] -A <package>...
-  aurora [options] -R <package>...
-  aurora [options] -Q
-  aurora [options] -P
-  aurora [options] --generate-config
-  aurora -h | --help
-  aurora --version
+  aurorad [options] -L
+  aurorad [options] -A <package>... [-p <priority>]
+  aurorad [options] -R <package>...
+  aurorad [options] -Q
+  aurorad [options] -P
+  aurorad [options] --generate-config
+  aurorad -h | --help
+  aurorad --version
 
 Options:
   -L --listen         Listen specified address [default: :80].
@@ -35,6 +37,7 @@ Options:
   -Q --query          Query package database.
   -c --config <path>  Configuration file path.
                        [default: ` + defaultConfigPath + `]
+  -p --priority <n>   Priority level of the package [default: 0].
   -h --help           Show this screen.
   --version           Show version.
 `
@@ -105,7 +108,8 @@ func main() {
 
 	switch {
 	case args["--add"].(bool):
-		err = addPackage(packages, args["<package>"].([]string))
+		priority, _ := strconv.Atoi(args["--priority"].(string))
+		err = addPackage(packages, args["<package>"].([]string), priority)
 
 	case args["--remove"].(bool):
 		err = removePackage(packages, args["<package>"].([]string))
@@ -125,15 +129,16 @@ func main() {
 	}
 }
 
-func addPackage(collection *mgo.Collection, packages []string) error {
+func addPackage(collection *mgo.Collection, packages []string, priority int) error {
 	var err error
 
 	for _, name := range packages {
 		err = collection.Insert(
-			Package{
-				Name: name,
+			aurora.Package{
+				Name:   name,
 				Status: BuildStatusQueued.String(),
-				Date: time.Now(),
+				Date:   time.Now(),
+				Priority: priority,
 			},
 		)
 
@@ -171,7 +176,7 @@ func removePackage(collection *mgo.Collection, packages []string) error {
 
 func queryPackage(collection *mgo.Collection) error {
 	var (
-		pkg      = Package{}
+		pkg      = aurora.Package{}
 		packages = collection.Find(bson.M{}).Iter()
 		table    = tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
 	)

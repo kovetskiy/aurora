@@ -1,9 +1,11 @@
 package main
 
 import (
-	"github.com/globalsign/mgo"
 	"github.com/gorilla/rpc"
+
+	"github.com/globalsign/mgo"
 	"github.com/gorilla/rpc/json"
+	"github.com/kovetskiy/aurora/pkg/proto"
 )
 
 func NewRPCServer(collection *mgo.Collection, config *Config) *rpc.Server {
@@ -11,7 +13,7 @@ func NewRPCServer(collection *mgo.Collection, config *Config) *rpc.Server {
 	server.RegisterCodec(json.NewCodec(), "application/json")
 
 	server.RegisterService(
-		NewRPCPackageService(collection, config),
+		proto.NewPackageService(collection, config.LogsDir),
 		"PackageService",
 	)
 

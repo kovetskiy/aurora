@@ -13,6 +13,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/kovetskiy/aurora/pkg/aurora"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/faces/execution"
 	"github.com/reconquest/karma-go"
@@ -43,7 +44,7 @@ const (
 
 type build struct {
 	storage *mgo.Collection
-	pkg     Package
+	pkg     aurora.Package
 
 	instance      string
 	repoDir       string
