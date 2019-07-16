@@ -27,6 +27,8 @@ const (
 	reArchiveVer  = `(?P<ver>[a-z0-9_.]+-[0-9]+)`
 	reArchiveArch = `(?P<arch>(i686|x86_64))`
 	reArchiveExt  = `(?P<ext>tar(.(gz|bz2|xz|lrz|lzo|sz))?)`
+
+	packagesDatabaseFile = "aurora.db.tar"
 )
 
 var (
@@ -251,7 +253,7 @@ func (build *build) repoAdd(path string) error {
 
 	cmd := exec.Command(
 		"repo-add",
-		filepath.Join(build.repoDir, "aurora.db.tar"),
+		filepath.Join(build.repoDir, packagesDatabaseFile),
 		path,
 	)
 
@@ -269,7 +271,7 @@ func (build *build) repoRemove(path string) error {
 
 	cmd := exec.Command(
 		"repo-remove",
-		filepath.Join(build.repoDir, "aurora.db.tar"),
+		filepath.Join(build.repoDir, packagesDatabaseFile),
 		path,
 	)
 

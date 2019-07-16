@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/globalsign/mgo"
@@ -38,7 +43,12 @@ func NewProcessor(
 }
 
 func (proc *Processor) Init() error {
-	err := cleanupQueue(proc.config.Instance, proc.storage)
+	err := proc.removeLock()
+	if err != nil {
+		return err
+	}
+
+	err = cleanupQueue(proc.config.Instance, proc.storage)
 	if err != nil {
 		return karma.Format(
 			err,
@@ -215,6 +225,70 @@ func cleanupQueue(instance string, storage *mgo.Collection) error {
 			BuildStatusUnknown,
 		)
 	}
+
+	return nil
+}
+
+func (proc *Processor) removeLock() error {
+	path := filepath.Join(proc.config.RepoDir, packagesDatabaseFile+".lck")
+
+	infof("ensuring database lock file does not exist: %s", path)
+
+	raw, err := ioutil.ReadFile(path)
+	if err != nil {
+		// That's best case that lck file is not held by something
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		return karma.Format(
+			err,
+			"unable to open %s", path,
+		)
+	}
+
+	warningf("database lock file exists: %s", path)
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return karma.
+			Describe("path", path).
+			Format(
+				err,
+				"unexpected content in lck file: %q", string(raw),
+			)
+	}
+
+	warningf("database lock pid: %d", pid)
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to find process %d", pid,
+		)
+	}
+
+	defer process.Release()
+
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		// process found, we can't remove lock
+		return fmt.Errorf("process %d that locked %s is still running", pid, path)
+	}
+
+	warningf("database lock process is not running: %d", pid)
+
+	err = os.Remove(path)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to remove lck file: %s",
+			path,
+		)
+	}
+
+	warningf("database lock file has been removed: %s", path)
 
 	return nil
 }

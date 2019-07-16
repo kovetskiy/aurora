@@ -65,6 +65,8 @@ func main() {
 
 	bootstrap(args)
 
+	infof("starting up aurorad %s", version)
+
 	if args["--generate-config"].(bool) {
 		err := GenerateConfig(args["--config"].(string))
 		if err != nil {
@@ -135,9 +137,9 @@ func addPackage(collection *mgo.Collection, packages []string, priority int) err
 	for _, name := range packages {
 		err = collection.Insert(
 			aurora.Package{
-				Name:   name,
-				Status: BuildStatusQueued.String(),
-				Date:   time.Now(),
+				Name:     name,
+				Status:   BuildStatusQueued.String(),
+				Date:     time.Now(),
 				Priority: priority,
 			},
 		)
