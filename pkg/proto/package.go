@@ -1,4 +1,4 @@
-package aurora
+package proto
 
 import "time"
 

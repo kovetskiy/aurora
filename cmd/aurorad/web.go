@@ -6,6 +6,7 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/reconquest/karma-go"
 )
 
 const (
@@ -29,7 +30,14 @@ func serveWeb(collection *mgo.Collection, config *Config) error {
 
 	router.Get(staticPrefix+"/*", web.static.ServeHTTP)
 
-	rpc := NewRPCServer(collection, config)
+	rpc, err := NewRPCServer(collection, config)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to create RPC server",
+		)
+	}
+
 	router.Post("/rpc/", rpc.ServeHTTP)
 
 	infof("listening at %s", config.Listen)

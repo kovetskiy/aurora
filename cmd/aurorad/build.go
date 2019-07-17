@@ -13,7 +13,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
-	"github.com/kovetskiy/aurora/pkg/aurora"
+	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/faces/execution"
 	"github.com/reconquest/karma-go"
@@ -46,7 +46,7 @@ const (
 
 type build struct {
 	storage *mgo.Collection
-	pkg     aurora.Package
+	pkg     proto.Package
 
 	instance      string
 	repoDir       string
@@ -72,7 +72,7 @@ func (build *build) String() string {
 	return build.pkg.Name
 }
 
-func (build *build) updateStatus(status BuildStatus) {
+func (build *build) updateStatus(status proto.BuildStatus) {
 	build.pkg.Status = status.String()
 	build.pkg.Instance = build.instance
 
@@ -110,13 +110,13 @@ func (build *build) Process() {
 	build.cleanup()
 
 	build.pkg.Date = time.Now()
-	build.updateStatus(BuildStatusProcessing)
+	build.updateStatus(proto.BuildStatusProcessing)
 
 	archive, err := build.build()
 	if err != nil {
 		build.log.Error(err)
 
-		build.updateStatus(BuildStatusFailure)
+		build.updateStatus(proto.BuildStatusFailure)
 		return
 	}
 
@@ -133,7 +133,7 @@ func (build *build) Process() {
 			),
 		)
 
-		build.updateStatus(BuildStatusFailure)
+		build.updateStatus(proto.BuildStatusFailure)
 		return
 	}
 
@@ -146,12 +146,12 @@ func (build *build) Process() {
 				err, "can't update aurora repository",
 			),
 		)
-		build.updateStatus(BuildStatusFailure)
+		build.updateStatus(proto.BuildStatusFailure)
 
 		return
 	}
 
-	build.updateStatus(BuildStatusSuccess)
+	build.updateStatus(proto.BuildStatusSuccess)
 
 }
 

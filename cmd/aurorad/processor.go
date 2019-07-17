@@ -13,7 +13,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
-	"github.com/kovetskiy/aurora/pkg/aurora"
+	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/reconquest/karma-go"
 	"github.com/reconquest/threadpool-go"
 )
@@ -84,7 +84,7 @@ func (proc *Processor) Init() error {
 
 func (proc *Processor) Process() {
 	for {
-		pkg := aurora.Package{}
+		pkg := proto.Package{}
 
 		iterator := proc.storage.
 			Find(bson.M{}).
@@ -97,16 +97,18 @@ func (proc *Processor) Process() {
 			var canSkip bool
 
 			since = time.Since(pkg.Date)
+
+			// uh? looks ugly
 			switch pkg.Status {
-			case BuildStatusProcessing.String():
+			case proto.BuildStatusProcessing.String():
 				interval = proc.config.Interval.Build.StatusProcessing
 				canSkip = true
 
-			case BuildStatusSuccess.String():
+			case proto.BuildStatusSuccess.String():
 				interval = proc.config.Interval.Build.StatusSuccess
 				canSkip = true
 
-			case BuildStatusFailure.String():
+			case proto.BuildStatusFailure.String():
 				interval = proc.config.Interval.Build.StatusFailure
 				canSkip = true
 			}
@@ -201,12 +203,12 @@ func prepareDirs(
 func cleanupQueue(instance string, storage *mgo.Collection) error {
 	info, err := storage.UpdateAll(
 		bson.M{
-			"status":   BuildStatusProcessing,
+			"status":   proto.BuildStatusProcessing,
 			"instance": instance,
 		},
 		bson.M{
 			"$set": bson.M{
-				"status": BuildStatusUnknown,
+				"status": proto.BuildStatusUnknown,
 			},
 		},
 	)
@@ -221,8 +223,8 @@ func cleanupQueue(instance string, storage *mgo.Collection) error {
 		infof(
 			"%d packages updated from %q to %q",
 			info.Updated,
-			BuildStatusProcessing,
-			BuildStatusUnknown,
+			proto.BuildStatusProcessing,
+			proto.BuildStatusUnknown,
 		)
 	}
 

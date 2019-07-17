@@ -26,7 +26,7 @@ listen: ":80"
 database: "mongodb://localhost/aurora"
 
 # directory with ready-to-install packages
-repo_dir: "/var/http/aurora/"
+repo_dir: "/srv/http/aurora/"
 
 # directory where logs will be stored
 logs_dir: "/var/log/aurora/packages/"
@@ -68,12 +68,16 @@ history:
 # bus server is an event pubsub system inside of aurorad
 bus:
 	listen: ":4242"
+
+# dir with authorized RSA public keys
+authorized_keys: "/etc/aurora/authorized_keys"
 `
 
 type ConfigHistory struct {
 	Versions         int `yaml:"versions" required:"true"`
 	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
 }
+
 type Config struct {
 	Debug bool
 	Trace bool
@@ -104,6 +108,8 @@ type Config struct {
 	Timeout struct {
 		Build string `yaml:"build" required:"true"`
 	} `required:"true"`
+
+	AuthorizedKeysDir string `yaml:"authorized_keys" required:"true"`
 }
 
 func GenerateConfig(path string) error {

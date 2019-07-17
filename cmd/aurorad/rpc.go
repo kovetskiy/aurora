@@ -1,21 +1,35 @@
 package main
 
 import (
-	"github.com/gorilla/rpc"
+	jsonrpc "github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json2"
+	"github.com/kovetskiy/aurora/pkg/rpc"
+	"github.com/reconquest/karma-go"
 
 	"github.com/globalsign/mgo"
-	"github.com/gorilla/rpc/json"
-	"github.com/kovetskiy/aurora/pkg/proto"
 )
 
-func NewRPCServer(collection *mgo.Collection, config *Config) *rpc.Server {
-	server := rpc.NewServer()
-	server.RegisterCodec(json.NewCodec(), "application/json")
+func NewRPCServer(collection *mgo.Collection, config *Config) (*jsonrpc.Server, error) {
+	server := jsonrpc.NewServer()
+	server.RegisterCodec(json2.NewCodec(), "application/json")
 
-	server.RegisterService(
-		proto.NewPackageService(collection, config.LogsDir),
-		"PackageService",
+	auth, err := rpc.NewAuthService(config.AuthorizedKeysDir)
+	if err != nil {
+		return nil, karma.Format(
+			err,
+			"unable to initialize AuthService",
+		)
+	}
+
+	pkg := rpc.NewPackageService(
+		collection,
+		auth,
+		config.LogsDir,
+		config.Instance,
 	)
 
-	return server
+	server.RegisterService(auth, "AuthService")
+	server.RegisterService(pkg, "PackageService")
+
+	return server, nil
 }
