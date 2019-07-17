@@ -1,11 +1,12 @@
 package main
 
 import (
-	"io"
+	"encoding/json"
+	"fmt"
 	"log"
-	"os"
 
 	"github.com/gorilla/websocket"
+	"github.com/kovetskiy/aurora/pkg/bus"
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/rpc"
 	"github.com/reconquest/karma-go"
@@ -42,15 +43,25 @@ func handleWatch(opts Options) error {
 
 	log.Printf("connected to logs stream: %s", stream)
 
+	var message bus.Message
 	for {
 		_, reader, err := connection.NextReader()
 		if err != nil {
 			return err
 		}
 
-		_, err = io.Copy(os.Stdout, reader)
+		err = json.NewDecoder(reader).Decode(&message)
 		if err != nil {
 			return err
+		}
+
+		switch message.Type {
+		case "status":
+			fmt.Printf("Status: %s\n", message.Data)
+		case "log":
+			fmt.Print(message.Data)
+		default:
+			log.Println("unhandled type of message: %q", message.Type)
 		}
 	}
 
