@@ -32,23 +32,23 @@ var (
 // Should be splitted into several services in order to decrease
 // responsibilities.
 type PackageService struct {
-	collection *mgo.Collection
-	auth       *AuthService
-	logsDir    string
-	instance   string
+	pkgs     *mgo.Collection
+	auth     *AuthService
+	logsDir  string
+	instance string
 }
 
 func NewPackageService(
-	collection *mgo.Collection,
+	pkgs *mgo.Collection,
 	auth *AuthService,
 	logsDir string,
 	instance string,
 ) *PackageService {
 	return &PackageService{
-		collection: collection,
-		logsDir:    logsDir,
-		auth:       auth,
-		instance:   instance,
+		pkgs:     pkgs,
+		logsDir:  logsDir,
+		auth:     auth,
+		instance: instance,
 	}
 }
 
@@ -57,7 +57,7 @@ func (service *PackageService) ListPackages(
 	request *proto.RequestListPackages,
 	response *proto.ResponseListPackages,
 ) error {
-	err := service.collection.Find(bson.M{}).All(&response.Packages)
+	err := service.pkgs.Find(bson.M{}).All(&response.Packages)
 	if err != nil {
 		return karma.Format(
 			err,
@@ -73,7 +73,7 @@ func (service *PackageService) GetPackage(
 	request *proto.RequestGetPackage,
 	response *proto.ResponseGetPackage,
 ) error {
-	err := service.collection.Find(
+	err := service.pkgs.Find(
 		bson.M{"name": request.Name},
 	).One(&response.Package)
 	if err == mgo.ErrNotFound {
@@ -96,7 +96,7 @@ func (service *PackageService) GetLogs(
 	response *proto.ResponseGetLogs,
 ) error {
 	var pkg proto.Package
-	err := service.collection.Find(
+	err := service.pkgs.Find(
 		bson.M{"name": request.Name},
 	).One(&pkg)
 	if err == mgo.ErrNotFound {
@@ -132,7 +132,7 @@ func (service *PackageService) GetBus(
 	response *proto.ResponseGetBus,
 ) error {
 	var pkg proto.Package
-	err := service.collection.Find(
+	err := service.pkgs.Find(
 		bson.M{"name": request.Name},
 	).One(&pkg)
 	if err == mgo.ErrNotFound {
@@ -166,7 +166,7 @@ func (service *PackageService) AddPackage(
 		return errors.New("invalid package name")
 	}
 
-	err := service.collection.Insert(
+	err := service.pkgs.Insert(
 		proto.Package{
 			Name:   request.Name,
 			Status: proto.BuildStatusQueued.String(),
@@ -193,7 +193,7 @@ func (service *PackageService) RemovePackage(
 		return ErrorUnauthorized
 	}
 
-	err := service.collection.Remove(
+	err := service.pkgs.Remove(
 		bson.M{"name": request.Name},
 	)
 

@@ -4,6 +4,10 @@
 /repo/
 /buffer
 /dist
-/aurorad
 /authorized_keys
 /aurora.key
+/aurorad-rpcd
+/pkg/bus/bus.test
+/rpc
+/rpcd.conf
+/aurorad

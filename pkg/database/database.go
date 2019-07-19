@@ -1,10 +1,12 @@
-package main
+package database
 
 import (
 	"time"
 
+	"github.com/kovetskiy/aurora/pkg/log"
+	"github.com/reconquest/karma-go"
+
 	"github.com/globalsign/mgo"
-	karma "github.com/reconquest/karma-go"
 )
 
 type Database struct {
@@ -17,18 +19,19 @@ type Database struct {
 func NewDatabase(dsn string) (*Database, error) {
 	db := &Database{dsn: dsn}
 
-	err := db.connect()
+	err := db.Connect()
 	if err != nil {
 		return nil, err
 	}
 
-	go db.watch()
+	go db.Watch()
 
 	return db, nil
 }
 
-func (db *Database) connect() error {
-	logger.Infof(
+func (db *Database) Connect() error {
+	log.Infof(
+		nil,
 		"connecting to db %q",
 		db.dsn,
 	)
@@ -44,7 +47,7 @@ func (db *Database) connect() error {
 		)
 	}
 
-	logger.Infof("db connected | took %s", time.Since(started))
+	log.Infof(nil, "db connected | took %s", time.Since(started))
 
 	db.session = session
 
@@ -53,25 +56,29 @@ func (db *Database) connect() error {
 	return nil
 }
 
-func (db *Database) watch() {
+func (db *Database) Watch() {
 	for {
 		time.Sleep(time.Second * 1)
 
 		err := db.session.Ping()
 		if err != nil {
-			logger.Error(karma.Format(err, "unable to ping db"))
+			log.Errorf(err, "unable to ping db")
 		} else {
 			continue
 		}
 
-		logger.Warning("db connection has gone away, trying to reconnect")
+		log.Warning("db connection has gone away, trying to reconnect")
 
-		err = db.connect()
+		err = db.Connect()
 		if err != nil {
-			logger.Error(karma.Format(err, "can't establish db connection"))
+			log.Errorf(err, "can't establish db connection")
 			continue
 		}
 
-		logger.Info("db connection has been re-established")
+		log.Info("db connection has been re-established")
 	}
+}
+
+func (db *Database) Packages() *mgo.Collection {
+	return db.C("packages")
 }

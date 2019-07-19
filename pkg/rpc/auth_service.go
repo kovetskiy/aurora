@@ -1,70 +1,28 @@
 package rpc
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
-	"io/ioutil"
 	"net/http"
-	"path/filepath"
 
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/signature"
 	"github.com/reconquest/karma-go"
 )
 
-type rsaKey struct {
-	signer *signature.Signer
-	key    *rsa.PublicKey
-}
-
 type AuthService struct {
-	keys []rsaKey
+	signature.Keys
 }
 
 func NewAuthService(authorizedKeysDir string) (*AuthService, error) {
-	paths, err := filepath.Glob(filepath.Join(authorizedKeysDir, "*"))
+	keys, err := signature.ReadKeys(authorizedKeysDir)
 	if err != nil {
 		return nil, karma.Format(
 			err,
-			"unable to open keys dir",
+			"unable to read keys",
 		)
 	}
 
-	keys := []rsaKey{}
-	for _, path := range paths {
-		name := filepath.Base(path)
-
-		raw, err := ioutil.ReadFile(path)
-		if err != nil {
-			return nil, karma.Format(
-				err,
-				"unable to read %q", path,
-			)
-		}
-
-		block, _ := pem.Decode(raw)
-		if block == nil {
-			return nil, fmt.Errorf("unable to decode PEM block: %q", path)
-		}
-
-		key, err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if err != nil {
-			return nil, karma.Format(
-				err,
-				"unable to parse pkcs1 public key: %q", path,
-			)
-		}
-
-		keys = append(keys, rsaKey{
-			signer: &signature.Signer{Name: name},
-			key:    key,
-		})
-	}
-
 	return &AuthService{
-		keys: keys,
+		Keys: keys,
 	}, nil
 }
 
@@ -84,20 +42,6 @@ func (service *AuthService) WhoAmI(
 	}
 
 	response.Name = signer.Name
-
-	return nil
-}
-
-func (service *AuthService) Verify(signature *signature.Signature) *signature.Signer {
-	if signature == nil {
-		return nil
-	}
-
-	for _, key := range service.keys {
-		if err := signature.Verify(key.key); err == nil {
-			return key.signer
-		}
-	}
 
 	return nil
 }

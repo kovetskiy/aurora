@@ -11,19 +11,19 @@ import (
 
 var (
 	version = "[manual build]"
-	usage   = "aurora " + version + `
+	usage   = "auroractl " + version + `
 
 Aurora is a command line client for aurora daemon.
 
 Usage:
-  aurora [options] get [<package>]
-  aurora [options] add <package>
-  aurora [options] rm <package>
-  aurora [options] log <package>
-  aurora [options] watch <package>
-  aurora [options] whoami
-  aurora -h | --help
-  aurora --version
+  auroractl [options] get [<package>]
+  auroractl [options] add <package>
+  auroractl [options] rm <package>
+  auroractl [options] log <package>
+  auroractl [options] watch <package>
+  auroractl [options] whoami
+  auroractl -h | --help
+  auroractl --version
 
 Options:
   get                           Query specified package or query a list of packages.

@@ -5,9 +5,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/kovetskiy/aurora/pkg/bus"
-	"github.com/kovetskiy/aurora/pkg/proto"
 )
+
+type BusMessage struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data,omitempty"`
+}
 
 type BusServer struct {
 	bus *Bus
@@ -47,8 +50,8 @@ func (server *BusServer) ServeHTTP(
 	defer connection.Close()
 
 	if !exists {
-		err := connection.WriteJSON(bus.Message{
-			Type: "empty_channel",
+		err := connection.WriteJSON(BusMessage{
+			Type: "not_published",
 		})
 		if err != nil {
 			errorln(err)
@@ -64,15 +67,15 @@ func (server *BusServer) ServeHTTP(
 		}
 
 		switch data := message.(type) {
-		case proto.BuildStatus:
-			err = connection.WriteJSON(bus.Message{
+		case BuildStatus:
+			err = connection.WriteJSON(BusMessage{
 				Type: "status",
 				Data: data.String(),
 			})
 
 		case string:
-			err = connection.WriteJSON(bus.Message{
-				Type: "log",
+			err = connection.WriteJSON(BusMessage{
+				Type: "logs",
 				Data: data,
 			})
 
