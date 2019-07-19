@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	logger *cog.Logger
+	Logger *cog.Logger
 	stderr *lorg.Log
 )
 
@@ -18,9 +18,9 @@ func init() {
 		lorg.NewFormat("${time} ${level:[%s]:right:short} ${prefix}%s"),
 	)
 
-	logger = cog.NewLogger(stderr)
+	Logger = cog.NewLogger(stderr)
 
-	logger.SetLevel(lorg.LevelDebug)
+	Logger.SetLevel(lorg.LevelDebug)
 }
 
 func SetDebug(enabled bool) {
@@ -40,7 +40,7 @@ func Fatalf(
 	message string,
 	args ...interface{},
 ) {
-	logger.Fatalf(err, message, args...)
+	Logger.Fatalf(err, message, args...)
 }
 
 func Errorf(
@@ -48,7 +48,7 @@ func Errorf(
 	message string,
 	args ...interface{},
 ) {
-	logger.Errorf(err, message, args...)
+	Logger.Errorf(err, message, args...)
 }
 
 func Warningf(
@@ -56,7 +56,7 @@ func Warningf(
 	message string,
 	args ...interface{},
 ) {
-	logger.Warningf(err, message, args...)
+	Logger.Warningf(err, message, args...)
 }
 
 func Infof(
@@ -64,7 +64,7 @@ func Infof(
 	message string,
 	args ...interface{},
 ) {
-	logger.Infof(context, message, args...)
+	Logger.Infof(context, message, args...)
 }
 
 func Debugf(
@@ -72,7 +72,7 @@ func Debugf(
 	message string,
 	args ...interface{},
 ) {
-	logger.Debugf(context, message, args...)
+	Logger.Debugf(context, message, args...)
 }
 
 func Tracef(
@@ -80,33 +80,33 @@ func Tracef(
 	message string,
 	args ...interface{},
 ) {
-	logger.Tracef(context, message, args...)
+	Logger.Tracef(context, message, args...)
 }
 
 func Fatal(values ...interface{}) {
-	logger.Fatal(values...)
+	Logger.Fatal(values...)
 }
 
 func Error(values ...interface{}) {
-	logger.Error(values...)
+	Logger.Error(values...)
 }
 
 func Warning(values ...interface{}) {
-	logger.Warning(values...)
+	Logger.Warning(values...)
 }
 
 func Info(values ...interface{}) {
-	logger.Info(values...)
+	Logger.Info(values...)
 }
 
 func Debug(values ...interface{}) {
-	logger.Debug(values...)
+	Logger.Debug(values...)
 }
 
 func Trace(values ...interface{}) {
-	logger.Trace(values...)
+	Logger.Trace(values...)
 }
 
 func TraceJSON(obj interface{}) string {
-	return logger.TraceJSON(obj)
+	return Logger.TraceJSON(obj)
 }

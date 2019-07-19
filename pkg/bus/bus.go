@@ -12,12 +12,15 @@ type Message struct {
 	Data interface{} `json:"data,omitempty"`
 }
 
-type Bus struct {
+type Connection struct {
 	connection *amqp.Connection
-	channel    *amqp.Channel
 }
 
-func Dial(uri string) (*Bus, error) {
+type Channel struct {
+	channel *amqp.Channel
+}
+
+func Dial(uri string) (*Connection, error) {
 	connection, err := amqp.Dial(uri)
 	if err != nil {
 		return nil, karma.Format(
@@ -26,7 +29,11 @@ func Dial(uri string) (*Bus, error) {
 		)
 	}
 
-	channel, err := connection.Channel()
+	return &Connection{connection: connection}, nil
+}
+
+func (conn *Connection) Channel() (*Channel, error) {
+	channel, err := conn.connection.Channel()
 	if err != nil {
 		return nil, karma.Format(
 			err,
@@ -34,15 +41,11 @@ func Dial(uri string) (*Bus, error) {
 		)
 	}
 
-	bus := &Bus{}
-	bus.connection = connection
-	bus.channel = channel
-
-	return bus, nil
+	return &Channel{channel: channel}, nil
 }
 
 // Close current connection and opened channels.
-func (bus *Bus) Close() error {
+func (bus *Connection) Close() error {
 	if bus.connection == nil {
 		return nil
 	}

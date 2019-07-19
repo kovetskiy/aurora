@@ -8,6 +8,9 @@
 /aurora.key
 /aurorad-rpcd
 /pkg/bus/bus.test
+/bus.test
 /rpc
 /rpcd.conf
 /aurorad
+/aurorad-procd
+/aurorad-queued

@@ -169,7 +169,7 @@ func (service *PackageService) AddPackage(
 	err := service.pkgs.Insert(
 		proto.Package{
 			Name:   request.Name,
-			Status: proto.BuildStatusQueued.String(),
+			Status: proto.PackageStatusQueued.String(),
 			Date:   time.Now(),
 		},
 	)

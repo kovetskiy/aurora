@@ -1,10 +1,12 @@
 package config
 
 import (
+	"os"
 	"time"
 
 	"github.com/go-yaml/yaml"
 	"github.com/kovetskiy/ko"
+	"github.com/reconquest/karma-go"
 )
 
 type Log struct {
@@ -20,30 +22,10 @@ type RPC struct {
 	AuthorizedKeysDir string `yaml:"authorized_keys" required:"true"`
 }
 
-type Bus struct {
+type Queue struct {
 	Log
-	Listen            string `yaml:"listen" required:"true"`
-	AuthorizedKeysDir string `yaml:"authorized_keys" required:"true"`
-}
-
-type ConfigHistory struct {
-	Versions         int `yaml:"versions" required:"true"`
-	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
-}
-
-type Config struct {
-	Debug bool
-	Trace bool
-
-	Instance  string        `yaml:"instance" required:"true"`
-	Listen    string        `required:"true"`
-	Database  string        `required:"true"`
-	RepoDir   string        `yaml:"repo_dir" required:"true"`
-	LogsDir   string        `yaml:"logs_dir" required:"true"`
-	BufferDir string        `yaml:"buffer_dir" required:"true"`
-	Threads   int           `yaml:"threads"`
-	BaseImage string        `yaml:"base_image" required:"true"`
-	History   ConfigHistory `yaml:"history" required:"true"`
+	Database string `yaml:"database" required:"true"`
+	Bus      string `yaml:"bus" required:"true"`
 
 	Interval struct {
 		Poll  time.Duration `yaml:"poll" required:"true"`
@@ -53,6 +35,25 @@ type Config struct {
 			StatusFailure    time.Duration `yaml:"status_failure" required:"true"`
 		} `required:"true"`
 	} `required:"true"`
+}
+
+type History struct {
+	Versions         int `yaml:"versions" required:"true"`
+	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
+}
+
+type Proc struct {
+	Log
+
+	Instance  string  `yaml:"instance" default:"$HOSTNAME" required:"true"`
+	Listen    string  `yaml:"listen" required:"true"`
+	Bus       string  `yaml:"bus" required:"true"`
+	RepoDir   string  `yaml:"repo_dir" required:"true"`
+	LogsDir   string  `yaml:"logs_dir" required:"true"`
+	BufferDir string  `yaml:"buffer_dir" required:"true"`
+	Threads   int     `yaml:"threads"`
+	BaseImage string  `yaml:"base_image" required:"true"`
+	History   History `yaml:"history" required:"true"`
 
 	Timeout struct {
 		Build string `yaml:"build" required:"true"`
@@ -83,31 +84,31 @@ func GetRPC(path string) (*RPC, error) {
 	return &config, nil
 }
 
-//func Load(path string) (*Config, error) {
-//    var config Config
+func GetQueue(path string) (*Queue, error) {
+	var config Queue
+	err := ko.Load(path, &config, yaml.Unmarshal)
+	if err != nil {
+		return nil, err
+	}
 
-//    err := ko.Load(path, &config, yaml.Unmarshal)
-//    if os.IsNotExist(err) && path == defaultConfigPath {
-//        err := GenerateConfig(path)
-//        if err != nil {
-//            return nil, karma.Format(
-//                err,
-//                "unable to write default config at %s",
-//                defaultConfigPath,
-//            )
-//        }
+	return &config, nil
+}
 
-//        err = ko.Load(path, &config, yaml.Unmarshal)
-//    }
+func GetProc(path string) (*Proc, error) {
+	var config Proc
+	err := ko.Load(path, &config, yaml.Unmarshal)
+	if err != nil {
+		return nil, err
+	}
 
-//    if config.Instance == "$HOSTNAME" {
-//        instance, err := os.Hostname()
-//        if err != nil {
-//            return nil, karma.Format(err, "unable to get hostname")
-//        }
+	if config.Instance == "$HOSTNAME" {
+		instance, err := os.Hostname()
+		if err != nil {
+			return nil, karma.Format(err, "unable to get hostname")
+		}
 
-//        config.Instance = instance
-//    }
+		config.Instance = instance
+	}
 
-//    return &config, err
-//}
+	return &config, nil
+}

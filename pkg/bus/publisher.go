@@ -7,43 +7,40 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type Publisher struct {
+type Publisher interface {
+	Publish(interface{}) error
+}
+
+type QueuePublisher struct {
 	queue   *amqp.Queue
 	channel *amqp.Channel
 }
 
-func (bus *Bus) declare(name string) (*amqp.Queue, error) {
-	queue, err := bus.channel.QueueDeclare(
-		name,
+type ExchangePublisher struct {
+	queueName string
+	channel   *amqp.Channel
+}
+
+func (ch *Channel) GetQueuePublisher(queueName string) (*QueuePublisher, error) {
+	queue, err := ch.channel.QueueDeclare(
+		queueName,
 		true,  // durable
 		false, // delete when unused
 		false, // exclusive
 		false, // noWait
-		nil,   // arguments
+		nil,   // args
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &queue, nil
-}
-
-func (bus *Bus) GetPublisher(queueName string) (*Publisher, error) {
-	queue, err := bus.declare(queueName)
-	if err != nil {
-		return nil, karma.Format(
-			err,
-			"unable to declare queue",
-		)
-	}
-
-	return &Publisher{
-		queue:   queue,
-		channel: bus.channel,
+	return &QueuePublisher{
+		queue:   &queue,
+		channel: ch.channel,
 	}, nil
 }
 
-func (publisher *Publisher) Publish(message interface{}) error {
+func (publisher *QueuePublisher) Publish(message interface{}) error {
 	body, err := json.Marshal(message)
 	if err != nil {
 		return karma.Format(
@@ -55,6 +52,58 @@ func (publisher *Publisher) Publish(message interface{}) error {
 	err = publisher.channel.Publish(
 		"",
 		publisher.queue.Name,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        body,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (ch *Channel) GetExchangePublisher(queueName string) (*ExchangePublisher, error) {
+	err := ch.channel.ExchangeDeclare(
+		queueName,
+		"fanout", // kind
+		false,    // durable
+		true,     // delete when unused
+		false,    // internal
+		false,    // noWait
+		nil,      // args
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// enter confirming mode so we sure that server received the message
+	err = ch.channel.Confirm(false)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ExchangePublisher{
+		channel:   ch.channel,
+		queueName: queueName,
+	}, nil
+}
+
+func (publisher *ExchangePublisher) Publish(message interface{}) error {
+	body, err := json.Marshal(message)
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to marshal message",
+		)
+	}
+
+	err = publisher.channel.Publish(
+		publisher.queueName,
+		"",
 		false,
 		false,
 		amqp.Publishing{
