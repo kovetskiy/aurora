@@ -8,7 +8,7 @@ import (
 )
 
 func handleLog(opts Options) error {
-	client := NewClient(opts.Address)
+	client := rpc.NewClient(opts.Address)
 
 	var response proto.ResponseGetLogs
 	err := client.Call(

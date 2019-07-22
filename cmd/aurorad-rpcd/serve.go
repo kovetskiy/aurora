@@ -16,6 +16,7 @@ import (
 
 func listenAndServe(
 	pkgs *mgo.Collection,
+	builds *mgo.Collection,
 	config *config.RPC,
 ) error {
 	router := chi.NewRouter()
@@ -24,7 +25,7 @@ func listenAndServe(
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	rpc, err := newRPCServer(pkgs, config)
+	rpc, err := newRPCServer(pkgs, builds, config)
 	if err != nil {
 		return karma.Format(
 			err,
@@ -40,13 +41,13 @@ func listenAndServe(
 }
 
 func newRPCServer(
-	pkgs *mgo.Collection,
+	pkgs, builds *mgo.Collection,
 	config *config.RPC,
 ) (*jsonrpc.Server, error) {
 	server := jsonrpc.NewServer()
 	server.RegisterCodec(json2.NewCodec(), "application/json")
 
-	auth, err := rpc.NewAuthService(config.AuthorizedKeysDir)
+	authService, err := rpc.NewAuthService(config.AuthorizedKeysDir)
 	if err != nil {
 		return nil, karma.Format(
 			err,
@@ -54,15 +55,21 @@ func newRPCServer(
 		)
 	}
 
-	pkg := rpc.NewPackageService(
+	packageService := rpc.NewPackageService(
 		pkgs,
-		auth,
+		authService,
 		"",
 		"",
 	)
 
-	server.RegisterService(auth, "AuthService")
-	server.RegisterService(pkg, "PackageService")
+	buildService := rpc.NewBuildService(
+		builds,
+		authService,
+	)
+
+	server.RegisterService(authService, "AuthService")
+	server.RegisterService(packageService, "PackageService")
+	server.RegisterService(buildService, "BuildService")
 
 	return server, nil
 }

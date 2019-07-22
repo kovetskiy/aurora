@@ -5,16 +5,17 @@ import (
 
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/rpc"
+	"github.com/kovetskiy/aurora/pkg/signature"
 )
 
 func handleRemove(opts Options) error {
-	client := NewClient(opts.Address)
-	signer := NewSigner(opts.Key)
+	client := rpc.NewClient(opts.Address)
+	signer := signature.NewSigner(opts.Key)
 
 	err := client.Call(
 		(*rpc.PackageService).RemovePackage,
 		proto.RequestRemovePackage{
-			Signature: signer.sign(),
+			Signature: signer.Sign(),
 			Name:      opts.Package,
 		},
 		&proto.ResponseRemovePackage{},

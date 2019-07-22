@@ -44,7 +44,7 @@ func ReadKeys(dir string) (Keys, error) {
 			return nil, fmt.Errorf("unable to decode PEM block: %q", path)
 		}
 
-		key, err := x509.ParsePKCS1PublicKey(block.Bytes)
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
 			return nil, karma.Format(
 				err,
@@ -52,9 +52,16 @@ func ReadKeys(dir string) (Keys, error) {
 			)
 		}
 
+		publicKey, ok := key.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"rsa public key expected but got %T", key,
+			)
+		}
+
 		keys = append(keys, Key{
 			Signer:    &Signer{Name: name},
-			PublicKey: key,
+			PublicKey: publicKey,
 		})
 	}
 

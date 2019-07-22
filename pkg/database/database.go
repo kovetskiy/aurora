@@ -82,3 +82,7 @@ func (db *Database) Watch() {
 func (db *Database) Packages() *mgo.Collection {
 	return db.C("packages")
 }
+
+func (db *Database) Builds() *mgo.Collection {
+	return db.C("builds")
+}

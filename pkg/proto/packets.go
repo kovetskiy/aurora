@@ -60,3 +60,12 @@ type RequestWhoAmI struct {
 type ResponseWhoAmI struct {
 	Name string `json:"name"`
 }
+
+type RequestPushBuild struct {
+	Signature *signature.Signature
+	Build     Build
+}
+
+type ResponsePushBuild struct {
+	//
+}

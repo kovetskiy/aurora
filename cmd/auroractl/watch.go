@@ -13,7 +13,7 @@ import (
 )
 
 func handleWatch(opts Options) error {
-	client := NewClient(opts.Address)
+	client := rpc.NewClient(opts.Address)
 
 	var response proto.ResponseGetBus
 	err := client.Call(

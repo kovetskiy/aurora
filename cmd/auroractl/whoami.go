@@ -5,17 +5,18 @@ import (
 
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/rpc"
+	"github.com/kovetskiy/aurora/pkg/signature"
 )
 
 func handleWhoami(opts Options) error {
-	client := NewClient(opts.Address)
-	signer := NewSigner(opts.Key)
+	client := rpc.NewClient(opts.Address)
+	signer := signature.NewSigner(opts.Key)
 
 	var response proto.ResponseWhoAmI
 	err := client.Call(
 		(*rpc.AuthService).WhoAmI,
 		proto.RequestWhoAmI{
-			Signature: signer.sign(),
+			Signature: signer.Sign(),
 		},
 		&response,
 	)

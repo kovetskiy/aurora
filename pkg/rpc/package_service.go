@@ -139,10 +139,7 @@ func (service *PackageService) GetBus(
 		return errors.New("no such package")
 	}
 
-	instance := pkg.Instance
-	if instance == "" {
-		instance = service.instance
-	}
+	instance := service.instance
 
 	// here can be complex logic with retrieving address of processor
 	address := fmt.Sprintf(
@@ -168,9 +165,9 @@ func (service *PackageService) AddPackage(
 
 	err := service.pkgs.Insert(
 		proto.Package{
-			Name:   request.Name,
-			Status: proto.PackageStatusQueued.String(),
-			Date:   time.Now(),
+			Name:      request.Name,
+			Status:    proto.PackageStatusQueued,
+			UpdatedAt: time.Now(),
 		},
 	)
 

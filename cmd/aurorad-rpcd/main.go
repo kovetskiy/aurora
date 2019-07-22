@@ -52,6 +52,7 @@ func main() {
 	}
 
 	packages := db.Packages()
+	builds := db.Builds()
 
 	err = packages.EnsureIndex(mgo.Index{
 		Key:    []string{"name"},
@@ -61,7 +62,7 @@ func main() {
 		log.Fatalf(err, "can't ensure index for collection")
 	}
 
-	err = listenAndServe(packages, config)
+	err = listenAndServe(packages, builds, config)
 	if err != nil {
 		log.Fatal(err)
 	}

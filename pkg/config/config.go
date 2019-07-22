@@ -45,8 +45,9 @@ type History struct {
 type Proc struct {
 	Log
 
+	RPC       string  `yaml:"rpc" required:"true"`
+	Key       string  `yaml:"key" required:"true"`
 	Instance  string  `yaml:"instance" default:"$HOSTNAME" required:"true"`
-	Listen    string  `yaml:"listen" required:"true"`
 	Bus       string  `yaml:"bus" required:"true"`
 	RepoDir   string  `yaml:"repo_dir" required:"true"`
 	LogsDir   string  `yaml:"logs_dir" required:"true"`
@@ -59,20 +60,6 @@ type Proc struct {
 		Build string `yaml:"build" required:"true"`
 	} `required:"true"`
 }
-
-//func GenerateConfig(path string) error {
-//    err := os.MkdirAll(filepath.Dir(path), 0755)
-//    if err != nil {
-//        return err
-//    }
-
-//    err = ioutil.WriteFile(path, []byte(defaultConfig), 0600)
-//    if err != nil {
-//        return err
-//    }
-
-//    return nil
-//}
 
 func GetRPC(path string) (*RPC, error) {
 	var config RPC

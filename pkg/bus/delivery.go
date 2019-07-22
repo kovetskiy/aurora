@@ -1,5 +1,6 @@
 package bus
 
+import "encoding/json"
 import "github.com/streadway/amqp"
 
 type Delivery struct {
@@ -16,4 +17,13 @@ func (delivery *Delivery) Reject() error {
 
 func (delivery *Delivery) GetBody() []byte {
 	return delivery.Body
+}
+
+func (delivery *Delivery) Decode(resource interface{}) error {
+	err := json.Unmarshal(delivery.GetBody(), &resource)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

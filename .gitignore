@@ -10,7 +10,10 @@
 /pkg/bus/bus.test
 /bus.test
 /rpc
-/rpcd.conf
 /aurorad
 /aurorad-procd
 /aurorad-queued
+/*.key
+/*.pub
+/*.pem
+/auroractl

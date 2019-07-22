@@ -23,10 +23,7 @@ type Channel struct {
 func Dial(uri string) (*Connection, error) {
 	connection, err := amqp.Dial(uri)
 	if err != nil {
-		return nil, karma.Format(
-			err,
-			"unable to dial to amqp",
-		)
+		return nil, err
 	}
 
 	return &Connection{connection: connection}, nil

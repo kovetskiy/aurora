@@ -8,7 +8,7 @@ import (
 )
 
 func handleAdd(opts Options) error {
-	client := NewClient(opts.Address)
+	client := rpc.NewClient(opts.Address)
 
 	err := client.Call(
 		(*rpc.PackageService).AddPackage,

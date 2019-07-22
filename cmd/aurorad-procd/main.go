@@ -31,7 +31,7 @@ func main() {
 
 	log.Infof(nil, "starting up aurorad-procd %s", version)
 
-	config, err := config.GetQueue(args["--config"].(string))
+	config, err := config.GetProc(args["--config"].(string))
 	if err != nil {
 		log.Fatalf(err, "unable to load config")
 	}
@@ -44,19 +44,10 @@ func main() {
 		log.SetLevel(lorg.LevelTrace)
 	}
 
-	//bus, err := bus.Dial(config.Bus)
-	//if err != nil {
-	//    log.Fatalf(err, "can't dial bus")
-	//}
+	proc, err := NewProcessor(config)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	//channel, err := bus.Channel()
-	//if err != nil {
-	//    log.Fatalf(err, "can't get bus channel")
-	//}
-
-	//publisher, err := channel.GetQueuePublisher("builds")
-	//if err != nil {
-	//    log.Fatalf(err, "can't get queue publisher")
-	//}
-
+	proc.Process()
 }

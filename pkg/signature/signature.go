@@ -23,18 +23,6 @@ type Signature struct {
 	Sign []byte
 }
 
-type Signer struct {
-	Name string
-}
-
-func (signer Signer) String() string {
-	if signer.Name == "" {
-		return "<unauthorized>"
-	}
-
-	return signer.Name
-}
-
 func New(key *rsa.PrivateKey) *Signature {
 	sign := Signature{}
 

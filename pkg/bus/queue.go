@@ -1,6 +1,7 @@
 package bus
 
 const (
-	QueuePackages = "packages"
-	QueueBuilds   = "builds"
+	//QueuePackages = "packages"
+	QueueBuilds = "builds"
+	//ExchangeLogs  = "logs"
 )

@@ -12,7 +12,7 @@ import (
 )
 
 func handleGet(opts Options) error {
-	client := NewClient(opts.Address)
+	client := rpc.NewClient(opts.Address)
 
 	if opts.Package != "" {
 		return handleGetPackage(client, opts.Package)
@@ -21,7 +21,7 @@ func handleGet(opts Options) error {
 	return handleListPackages(client)
 }
 
-func handleListPackages(client *Client) error {
+func handleListPackages(client *rpc.Client) error {
 	var reply proto.ResponseListPackages
 	err := client.Call(
 		(*rpc.PackageService).ListPackages,
@@ -35,7 +35,7 @@ func handleListPackages(client *Client) error {
 	return printPackages(reply.Packages...)
 }
 
-func handleGetPackage(client *Client, name string) error {
+func handleGetPackage(client *rpc.Client, name string) error {
 	var reply proto.ResponseGetPackage
 	err := client.Call(
 		(*rpc.PackageService).GetPackage,

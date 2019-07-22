@@ -1,4 +1,4 @@
-package main
+package rpc
 
 import (
 	"reflect"
@@ -25,12 +25,12 @@ func (client *Client) Call(
 	request interface{},
 	reply interface{},
 ) error {
-	name := getRPCName(fn)
+	name := getServiceMethod(fn)
 
 	return client.Client.Call(name, request, reply)
 }
 
-func getRPCName(fn interface{}) string {
+func getServiceMethod(fn interface{}) string {
 	fnValue := reflect.ValueOf(fn)
 	fnType := fnValue.Type()
 
