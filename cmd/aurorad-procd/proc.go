@@ -111,7 +111,7 @@ func (proc *Processor) initBus() error {
 	return nil
 }
 
-func (proc *Processor) Process() {
+func (proc *Processor) LoopServe() {
 	for {
 		delivery, ok := proc.queue.builds.Consume()
 		if !ok {
@@ -142,6 +142,8 @@ func (proc *Processor) Process() {
 			rpc:           proc.rpc,
 			signer:        proc.signer,
 		}
+
+		log.Tracef(nil, "pushing to threadpool: %s", build.Package)
 
 		proc.pool.Push(task)
 	}

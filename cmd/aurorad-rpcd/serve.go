@@ -19,12 +19,6 @@ func listenAndServe(
 	builds *mgo.Collection,
 	config *config.RPC,
 ) error {
-	router := chi.NewRouter()
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
-	router.Use(middleware.Recoverer)
-
 	rpc, err := newRPCServer(pkgs, builds, config)
 	if err != nil {
 		return karma.Format(
@@ -32,6 +26,13 @@ func listenAndServe(
 			"unable to create RPC server",
 		)
 	}
+
+	router := chi.NewRouter()
+
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
 
 	router.Post("/rpc/", rpc.ServeHTTP)
 

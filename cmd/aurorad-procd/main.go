@@ -49,5 +49,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	proc.Process()
+	proc.LoopServe()
 }

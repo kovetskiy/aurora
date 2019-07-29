@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -267,7 +268,7 @@ func (task *Task) repoRemove(path string) error {
 }
 
 func (task *Task) build() (string, error) {
-	defer task.shutdown()
+	defer task.teardown()
 
 	var err error
 
@@ -319,7 +320,7 @@ func (task *Task) build() (string, error) {
 	return "", errors.New("built archive file not found")
 }
 
-func (task *Task) shutdown() {
+func (task *Task) teardown() {
 	if task.containerID != "" {
 		err := task.cloud.DestroyContainer(task.containerID)
 		if err != nil {
@@ -333,6 +334,7 @@ func (task *Task) shutdown() {
 		task.log.Debugf("container %s has been destroyed", task.containerName)
 	}
 
+	// close idle connections
 	task.cloud.client.Close()
 }
 
@@ -374,6 +376,7 @@ func (task *Task) runContainer() (string, error) {
 	go func() {
 		defer routines.Done()
 		task.cloud.FollowLogs(container, func(data string) {
+			task.log.Tracef("%s", strings.TrimRight(data, "\n"))
 			//err := task.queue.logs.Publish(proto.BuildLogChunk{
 			//    Package: task.pkg,
 			//    Data:    data,

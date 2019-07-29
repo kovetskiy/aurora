@@ -42,20 +42,31 @@ func (server *Server) Serve() error {
 }
 
 func (server *Server) initBus() error {
+	log.Infof(
+		karma.Describe("address", server.config.Bus),
+		"connecting to bus",
+	)
+
 	conn, err := bus.Dial(server.config.Bus)
 	if err != nil {
 		return karma.Format(err, "can't dial bus")
 	}
+
+	log.Infof(nil, "connected to bus, creating a channel")
 
 	channel, err := conn.Channel()
 	if err != nil {
 		return err
 	}
 
+	log.Infof(nil, "declaring queue publisher")
+
 	server.queue.builds, err = channel.GetQueuePublisher(bus.QueueBuilds)
 	if err != nil {
 		return err
 	}
+
+	log.Infof(nil, "queue publisher %q declared", bus.QueueBuilds)
 
 	return nil
 }
@@ -102,7 +113,7 @@ func (server *Server) enqueueBuilds() {
 				continue
 			}
 
-			log.Debugf(nil, "pushing %s to thread pool queue", pkg.Name)
+			log.Debugf(nil, "push: %s", pkg.Name)
 
 			err := server.queue.builds.Publish(
 				proto.Build{Package: pkg.Name},

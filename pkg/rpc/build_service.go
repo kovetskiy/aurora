@@ -2,13 +2,12 @@ package rpc
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kovetskiy/aurora/pkg/proto"
+	"github.com/reconquest/karma-go"
 )
 
 type BuildService struct {
@@ -33,8 +32,6 @@ func (service *BuildService) PushBuild(
 		return ErrorUnauthorized
 	}
 
-	fmt.Fprintf(os.Stderr, "XXXXXX build_service.go:33 signer.Name: %#v\n", signer.Name)
-
 	build := request.Build
 	if !proto.IsValidPackageName(build.Package) {
 		return errors.New("invalid package name")
@@ -47,7 +44,10 @@ func (service *BuildService) PushBuild(
 		"package":  build.Package,
 	}, build)
 	if err != nil {
-		return err
+		return karma.Format(
+			err,
+			"unable to upsert a record in database",
+		)
 	}
 
 	return nil
