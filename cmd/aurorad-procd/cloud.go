@@ -174,7 +174,7 @@ func (cloud *Cloud) Exec(container string, command []string) error {
 	return nil
 }
 
-func (cloud *Cloud) WriteLogs(
+func (cloud *Cloud) CopyLogs(
 	logsDir string, container string, packageName string,
 ) error {
 	logfile, err := os.OpenFile(

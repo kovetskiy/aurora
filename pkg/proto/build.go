@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,4 +32,32 @@ func (build *Build) Describe() *karma.Context {
 		Describe("instance", build.Instance).
 		Describe("archive", build.Archive).
 		Describe("at", build.At.Format(time.RFC3339))
+}
+
+func (build *Build) Validate() error {
+	if build.Package == "" {
+		return errors.New("empty .package field")
+	}
+
+	if build.Status == PackageStatusSuccess {
+		if build.Archive == "" {
+			return errors.New("empty .archive .field while .status is success")
+		}
+	}
+
+	if build.Status == PackageStatusFailure {
+		if build.Error == "" {
+			return errors.New("empty .error field while status is .failure")
+		}
+	}
+
+	if build.At.IsZero() {
+		return errors.New("empty .at field")
+	}
+
+	if build.Instance == "" {
+		return errors.New("empty .instance field")
+	}
+
+	return nil
 }

@@ -80,6 +80,12 @@ func (task *Task) push(item proto.Build) {
 	item.Package = task.pkg
 	item.At = time.Now()
 
+	err := item.Validate()
+	if err != nil {
+		task.log.Errorf("bug: build is not valid: %s", err)
+		return
+	}
+
 	task.log.Infof("publishing build: %s", item)
 
 	request := &proto.RequestPushBuild{
@@ -89,13 +95,18 @@ func (task *Task) push(item proto.Build) {
 
 	log.Tracef(nil, "%s", log.TraceJSON(request))
 
-	err := task.rpc.Call((*rpc.BuildService).PushBuild, request, &proto.ResponsePushBuild{})
+	err = task.rpc.Call(
+		(*rpc.BuildService).PushBuild,
+		request,
+		&proto.ResponsePushBuild{},
+	)
 	if err != nil {
 		task.log.Error(
 			karma.Format(
 				err, "can't push build status",
 			),
 		)
+
 		return
 	}
 }
@@ -153,6 +164,7 @@ func (task *Task) Process() {
 				Error:  err.Error(),
 			},
 		)
+
 		return
 	}
 
@@ -339,7 +351,9 @@ func (task *Task) teardown() {
 	}
 
 	// close idle connections
-	task.cloud.client.Close()
+	if task.cloud.client != nil {
+		task.cloud.client.Close()
+	}
 }
 
 func (task *Task) runContainer() (string, error) {
@@ -370,6 +384,7 @@ func (task *Task) runContainer() (string, error) {
 	task.log.Debug("building package")
 
 	routines := &sync.WaitGroup{}
+
 	routines.Add(1)
 	go func() {
 		defer routines.Done()
@@ -393,7 +408,7 @@ func (task *Task) runContainer() (string, error) {
 
 	routines.Wait()
 
-	err = task.cloud.WriteLogs(task.logsDir, task.containerName, task.pkg)
+	err = task.cloud.CopyLogs(task.logsDir, task.containerName, task.pkg)
 	if err != nil {
 		task.log.Error(
 			karma.Format(
