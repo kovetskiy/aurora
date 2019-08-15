@@ -84,6 +84,7 @@ func (server *Server) enqueueBuilds() {
 			Sort("-priority").
 			Iter()
 
+		total := 0
 		for iterator.Next(&pkg) {
 			var interval time.Duration
 			var canSkip bool
@@ -113,7 +114,7 @@ func (server *Server) enqueueBuilds() {
 				continue
 			}
 
-			log.Debugf(nil, "push: %s", pkg.Name)
+			log.Tracef(nil, "enqueue build: %s", pkg.Name)
 
 			err := server.queue.builds.Publish(
 				proto.Build{Package: pkg.Name},
@@ -121,7 +122,11 @@ func (server *Server) enqueueBuilds() {
 			if err != nil {
 				log.Fatalf(err, "unable to publish package to queue")
 			}
+
+			total++
 		}
+
+		log.Infof(nil, "enqueued %d builds", total)
 
 		time.Sleep(server.config.Interval.Poll)
 	}

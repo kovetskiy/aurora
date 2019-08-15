@@ -6,6 +6,7 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/kovetskiy/aurora/pkg/log"
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/reconquest/karma-go"
 )
@@ -38,6 +39,8 @@ func (service *BuildService) PushBuild(
 	}
 
 	build.Instance = signer.Name
+
+	log.Debugf(build.Describe(), "update build")
 
 	_, err := service.builds.Upsert(bson.M{
 		"instance": build.Instance,

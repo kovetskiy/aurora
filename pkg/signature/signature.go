@@ -19,8 +19,8 @@ const (
 )
 
 type Signature struct {
-	Time int64
-	Sign []byte
+	Time int64  `json:"time"`
+	Sign []byte `json:"sign"`
 }
 
 func New(key *rsa.PrivateKey) *Signature {

@@ -82,10 +82,14 @@ func (task *Task) push(item proto.Build) {
 
 	task.log.Infof("publishing build: %s", item)
 
-	err := task.rpc.Call((*rpc.BuildService).PushBuild, &proto.RequestPushBuild{
+	request := &proto.RequestPushBuild{
 		Signature: task.signer.Sign(),
 		Build:     item,
-	}, &proto.ResponsePushBuild{})
+	}
+
+	log.Tracef(nil, "%s", log.TraceJSON(request))
+
+	err := task.rpc.Call((*rpc.BuildService).PushBuild, request, &proto.ResponsePushBuild{})
 	if err != nil {
 		task.log.Error(
 			karma.Format(
@@ -124,7 +128,7 @@ func (task *Task) Process() {
 		task.push(
 			proto.Build{
 				Status: proto.PackageStatusFailure,
-				Error:  err,
+				Error:  err.Error(),
 			},
 		)
 		return
@@ -146,7 +150,7 @@ func (task *Task) Process() {
 		task.push(
 			proto.Build{
 				Status: proto.PackageStatusFailure,
-				Error:  err,
+				Error:  err.Error(),
 			},
 		)
 		return

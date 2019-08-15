@@ -62,8 +62,8 @@ type ResponseWhoAmI struct {
 }
 
 type RequestPushBuild struct {
-	Signature *signature.Signature
-	Build     Build
+	Signature *signature.Signature `json:"signature"`
+	Build     Build                `json:"build"`
 }
 
 type ResponsePushBuild struct {
