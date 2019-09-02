@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
-	"time"
 
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/rpc"
@@ -66,7 +65,6 @@ func printPackages(pkgs ...*proto.Package) error {
 			pkg.Name,
 			pkg.Status,
 			pkg.Version,
-			pkg.Date.Format(time.RFC3339),
 		)
 	}
 

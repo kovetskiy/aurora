@@ -10,9 +10,12 @@ import (
 
 func handleRemove(opts Options) error {
 	client := rpc.NewClient(opts.Address)
-	signer := signature.NewSigner(opts.Key)
+	signer, err := signature.NewSigner(opts.Key)
+	if err != nil {
+		return err
+	}
 
-	err := client.Call(
+	err = client.Call(
 		(*rpc.PackageService).RemovePackage,
 		proto.RequestRemovePackage{
 			Signature: signer.Sign(),

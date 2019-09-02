@@ -67,7 +67,7 @@ func ReadPrivateKeyFile(path string) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, karma.Format(
 			err,
-			"unable to parse prcks1 private key block",
+			"unable to parse pcks1 private key block",
 		)
 	}
 
