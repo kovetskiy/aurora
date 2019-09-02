@@ -37,7 +37,7 @@ type Queue struct {
 	} `required:"true"`
 }
 
-type History struct {
+type StorageHistory struct {
 	Versions         int `yaml:"versions" required:"true"`
 	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
 }
@@ -45,20 +45,30 @@ type History struct {
 type Proc struct {
 	Log
 
-	RPC       string  `yaml:"rpc" required:"true"`
-	Key       string  `yaml:"key" required:"true"`
-	Instance  string  `yaml:"instance" default:"$HOSTNAME" required:"true"`
-	Bus       string  `yaml:"bus" required:"true"`
-	RepoDir   string  `yaml:"repo_dir" required:"true"`
-	LogsDir   string  `yaml:"logs_dir" required:"true"`
-	BufferDir string  `yaml:"buffer_dir" required:"true"`
-	Threads   int     `yaml:"threads"`
-	BaseImage string  `yaml:"base_image" required:"true"`
-	History   History `yaml:"history" required:"true"`
+	RPC       string `yaml:"rpc" required:"true"`
+	Key       string `yaml:"key" required:"true"`
+	Instance  string `yaml:"instance" default:"$HOSTNAME" required:"true"`
+	Bus       string `yaml:"bus" required:"true"`
+	RepoDir   string `yaml:"repo_dir" required:"true"`
+	LogsDir   string `yaml:"logs_dir" required:"true"`
+	BufferDir string `yaml:"buffer_dir" required:"true"`
+	Threads   int    `yaml:"threads"`
+	BaseImage string `yaml:"base_image" required:"true"`
 
 	Timeout struct {
 		Build string `yaml:"build" required:"true"`
 	} `required:"true"`
+
+	History StorageHistory `yaml:"history" required:"true"`
+}
+
+type Storage struct {
+	Log
+
+	Bus       string         `yaml:"bus" required:"true"`
+	Directory string         `yaml:"directory" required:"true"`
+	History   StorageHistory `yaml:"history" required:"true"`
+	Instance  string         `yaml:"instance" default:"$HOSTNAME" required:"true"`
 }
 
 func GetRPC(path string) (*RPC, error) {
@@ -76,6 +86,25 @@ func GetQueue(path string) (*Queue, error) {
 	err := ko.Load(path, &config, yaml.Unmarshal)
 	if err != nil {
 		return nil, err
+	}
+
+	return &config, nil
+}
+
+func GetStorage(path string) (*Storage, error) {
+	var config Storage
+	err := ko.Load(path, &config, yaml.Unmarshal)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.Instance == "$HOSTNAME" {
+		instance, err := os.Hostname()
+		if err != nil {
+			return nil, karma.Format(err, "unable to get hostname")
+		}
+
+		config.Instance = instance
 	}
 
 	return &config, nil

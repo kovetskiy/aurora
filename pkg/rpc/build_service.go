@@ -6,20 +6,28 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/kovetskiy/aurora/pkg/bus"
 	"github.com/kovetskiy/aurora/pkg/log"
 	"github.com/kovetskiy/aurora/pkg/proto"
+	"github.com/kovetskiy/aurora/pkg/storage"
 	"github.com/reconquest/karma-go"
 )
 
 type BuildService struct {
-	auth   *AuthService
-	builds *mgo.Collection
+	auth     *AuthService
+	builds   *mgo.Collection
+	archives bus.Publisher
 }
 
-func NewBuildService(builds *mgo.Collection, auth *AuthService) *BuildService {
+func NewBuildService(
+	builds *mgo.Collection,
+	auth *AuthService,
+	archives bus.Publisher,
+) *BuildService {
 	return &BuildService{
-		builds: builds,
-		auth:   auth,
+		builds:   builds,
+		auth:     auth,
+		archives: archives,
 	}
 }
 
@@ -40,9 +48,14 @@ func (service *BuildService) PushBuild(
 
 	build.Instance = signer.Name
 
-	log.Debugf(build.Describe(), "update build")
+	err := build.Validate()
+	if err != nil {
+		return err
+	}
 
-	_, err := service.builds.Upsert(bson.M{
+	log.Debugf(build.Describe(), "upserting build")
+
+	_, err = service.builds.Upsert(bson.M{
 		"instance": build.Instance,
 		"package":  build.Package,
 	}, build)
@@ -51,6 +64,21 @@ func (service *BuildService) PushBuild(
 			err,
 			"unable to upsert a record in database",
 		)
+	}
+
+	if build.Status == proto.PackageStatusSuccess {
+		log.Infof(build.Describe(), "publishing archive")
+		err = service.archives.Publish(storage.Archive{
+			Instance: build.Instance,
+			Package:  build.Package,
+			Archive:  build.Archive,
+		})
+		if err != nil {
+			return karma.Format(
+				err,
+				"unable to publish archive to the queue",
+			)
+		}
 	}
 
 	return nil

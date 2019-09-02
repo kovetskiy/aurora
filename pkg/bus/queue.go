@@ -1,7 +1,7 @@
 package bus
 
 const (
-	//QueuePackages = "packages"
-	QueueBuilds = "builds"
+	QueueBuilds   = "builds"
+	QueueArchives = "archives"
 	//ExchangeLogs  = "logs"
 )

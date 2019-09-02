@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	jsonrpc "github.com/gorilla/rpc/v2"
 	"github.com/gorilla/rpc/v2/json2"
+	"github.com/kovetskiy/aurora/pkg/bus"
 	"github.com/kovetskiy/aurora/pkg/config"
 	"github.com/kovetskiy/aurora/pkg/log"
 	"github.com/kovetskiy/aurora/pkg/rpc"
@@ -17,9 +18,10 @@ import (
 func listenAndServe(
 	pkgs *mgo.Collection,
 	builds *mgo.Collection,
+	archives bus.Publisher,
 	config *config.RPC,
 ) error {
-	rpc, err := newRPCServer(pkgs, builds, config)
+	rpc, err := newRPCServer(pkgs, builds, archives, config)
 	if err != nil {
 		return karma.Format(
 			err,
@@ -43,6 +45,7 @@ func listenAndServe(
 
 func newRPCServer(
 	pkgs, builds *mgo.Collection,
+	archives bus.Publisher,
 	config *config.RPC,
 ) (*jsonrpc.Server, error) {
 	server := jsonrpc.NewServer()
@@ -66,6 +69,7 @@ func newRPCServer(
 	buildService := rpc.NewBuildService(
 		builds,
 		authService,
+		archives,
 	)
 
 	server.RegisterService(authService, "AuthService")

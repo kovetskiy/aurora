@@ -55,9 +55,5 @@ func (build *Build) Validate() error {
 		return errors.New("empty .at field")
 	}
 
-	if build.Instance == "" {
-		return errors.New("empty .instance field")
-	}
-
 	return nil
 }

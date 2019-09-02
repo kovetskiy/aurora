@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -22,6 +23,28 @@ const (
 type Cloud struct {
 	client    *client.Client
 	BaseImage string
+}
+
+type ContainerState struct {
+	types.ContainerState
+}
+
+func (state *ContainerState) GetError() error {
+	data := []string{}
+	if state.ExitCode != 0 {
+		data = append(data, fmt.Sprintf("exit code: %d", state.ExitCode))
+	}
+	if state.Error != "" {
+		data = append(data, fmt.Sprintf("error: %s", state.Error))
+	}
+	if state.OOMKilled {
+		data = append(data, "killed by oom")
+	}
+	if len(data) > 0 {
+		return fmt.Errorf("%s", strings.Join(data, "; "))
+	}
+
+	return nil
 }
 
 func NewCloud(baseImage string) (*Cloud, error) {
@@ -130,12 +153,16 @@ func (cloud *Cloud) StartContainer(container string) error {
 	return nil
 }
 
-func (cloud *Cloud) Query(container string) ([]interface{}, error) {
-	// what is the point of this method?
-	// @kovetskiy
-	// some leftovers after hastur?
-	result := []interface{}{}
-	return result, nil
+func (cloud *Cloud) InspectContainer(container string) (*ContainerState, error) {
+	response, err := cloud.client.ContainerInspect(context.Background(), container)
+	if err != nil {
+		return nil, karma.Format(
+			err,
+			"unable to inspect container",
+		)
+	}
+
+	return &ContainerState{*response.State}, nil
 }
 
 func (cloud *Cloud) DestroyContainer(container string) error {

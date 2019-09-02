@@ -1,14 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
-	"syscall"
 
 	"github.com/kovetskiy/aurora/pkg/bus"
 	"github.com/kovetskiy/aurora/pkg/config"
@@ -42,13 +37,9 @@ type Processor struct {
 func NewProcessor(
 	config *config.Proc,
 ) (*Processor, error) {
+	var err error
 	proc := &Processor{
 		config: config,
-	}
-
-	err := proc.removeLock()
-	if err != nil {
-		return nil, err
 	}
 
 	proc.repoDir, proc.bufferDir, proc.logsDir, err = prepareDirs(proc.config)
@@ -238,67 +229,3 @@ func prepareDirs(
 
 //     return nil
 // }
-
-func (proc *Processor) removeLock() error {
-	path := filepath.Join(proc.config.RepoDir, packagesDatabaseFile+".lck")
-
-	log.Infof(nil, "ensuring database lock file does not exist: %s", path)
-
-	raw, err := ioutil.ReadFile(path)
-	if err != nil {
-		// That's best case that lck file is not held by something
-		if os.IsNotExist(err) {
-			return nil
-		}
-
-		return karma.Format(
-			err,
-			"unable to open %s", path,
-		)
-	}
-
-	log.Warningf(nil, "database lock file exists: %s", path)
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
-	if err != nil {
-		return karma.
-			Describe("path", path).
-			Format(
-				err,
-				"unexpected content in lck file: %q", string(raw),
-			)
-	}
-
-	log.Warningf(nil, "database lock pid: %d", pid)
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return karma.Format(
-			err,
-			"unable to find process %d", pid,
-		)
-	}
-
-	defer process.Release()
-
-	err = process.Signal(syscall.Signal(0))
-	if err == nil {
-		// process found, we can't remove lock
-		return fmt.Errorf("process %d that locked %s is still running", pid, path)
-	}
-
-	log.Warningf(nil, "database lock process is not running: %d", pid)
-
-	err = os.Remove(path)
-	if err != nil {
-		return karma.Format(
-			err,
-			"unable to remove lck file: %s",
-			path,
-		)
-	}
-
-	log.Warningf(nil, "database lock file has been removed: %s", path)
-
-	return nil
-}

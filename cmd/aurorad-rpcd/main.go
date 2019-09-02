@@ -3,10 +3,12 @@ package main
 import (
 	"github.com/docopt/docopt-go"
 	"github.com/globalsign/mgo"
+	"github.com/kovetskiy/aurora/pkg/bus"
 	"github.com/kovetskiy/aurora/pkg/config"
 	"github.com/kovetskiy/aurora/pkg/database"
 	"github.com/kovetskiy/aurora/pkg/log"
 	"github.com/kovetskiy/lorg"
+	"github.com/reconquest/karma-go"
 )
 
 var (
@@ -62,8 +64,49 @@ func main() {
 		log.Fatalf(err, "can't ensure index for collection")
 	}
 
-	err = listenAndServe(packages, builds, config)
+	archives, err := initBus(config.Bus)
+	if err != nil {
+		log.Fatalf(err, "unable to init bus")
+	}
+
+	err = listenAndServe(packages, builds, archives, config)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func initBus(addr string) (bus.Publisher, error) {
+	log.Infof(
+		karma.Describe("address", addr),
+		"connecting to bus",
+	)
+
+	conn, err := bus.Dial(addr)
+	if err != nil {
+		return nil, karma.Format(err, "can't dial bus")
+	}
+
+	log.Infof(nil, "connected to bus, creating a channel")
+
+	channel, err := conn.Channel()
+	if err != nil {
+		return nil, karma.Format(
+			err,
+			"unable to create bus channel",
+		)
+	}
+
+	log.Infof(nil, "declaring queue publisher")
+
+	archives, err := channel.GetExchangePublisher(bus.QueueArchives)
+	if err != nil {
+		return nil, karma.Format(
+			err,
+			"unable to declare exchange publisher",
+		)
+	}
+
+	log.Infof(nil, "queue publisher %q declared", bus.QueueArchives)
+
+	return archives, nil
 }
