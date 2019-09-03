@@ -2,12 +2,11 @@ package signature
 
 import (
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
+	sshenc "github.com/ianmcmahon/encoding_ssh"
 	"github.com/reconquest/karma-go"
 )
 
@@ -18,7 +17,7 @@ type Key struct {
 	PublicKey *rsa.PublicKey
 }
 
-func ReadKeys(dir string) (Keys, error) {
+func ReadAuthorizedKeys(dir string) (Keys, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
 		return nil, karma.Format(
@@ -39,20 +38,16 @@ func ReadKeys(dir string) (Keys, error) {
 			)
 		}
 
-		block, _ := pem.Decode(raw)
-		if block == nil {
-			return nil, fmt.Errorf("unable to decode PEM block: %q", path)
-		}
-
-		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		key, err := sshenc.DecodePublicKey(string(raw))
 		if err != nil {
 			return nil, karma.Format(
 				err,
-				"unable to parse pkcs1 public key: %q", path,
+				"unable to parse authorized key: %s",
+				path,
 			)
 		}
 
-		publicKey, ok := key.(*rsa.PublicKey)
+		publicKey, ok := (key).(*rsa.PublicKey)
 		if !ok {
 			return nil, fmt.Errorf(
 				"rsa public key expected but got %T", key,

@@ -18,3 +18,5 @@
 /*.pem
 /auroractl
 /aurorad-storaged
+/procd_repo
+/procd_logs

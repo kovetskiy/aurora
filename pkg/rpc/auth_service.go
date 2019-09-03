@@ -13,11 +13,11 @@ type AuthService struct {
 }
 
 func NewAuthService(authorizedKeysDir string) (*AuthService, error) {
-	keys, err := signature.ReadKeys(authorizedKeysDir)
+	keys, err := signature.ReadAuthorizedKeys(authorizedKeysDir)
 	if err != nil {
 		return nil, karma.Format(
 			err,
-			"unable to read keys",
+			"unable to read authorized keys",
 		)
 	}
 

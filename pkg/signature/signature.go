@@ -5,11 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/reconquest/karma-go"
 )
@@ -61,9 +62,7 @@ func ReadPrivateKeyFile(path string) (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 
-	block, _ := pem.Decode([]byte(pemdata))
-
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	key, err := ssh.ParseRawPrivateKey([]byte(pemdata))
 	if err != nil {
 		return nil, karma.Format(
 			err,
@@ -71,5 +70,14 @@ func ReadPrivateKeyFile(path string) (*rsa.PrivateKey, error) {
 		)
 	}
 
-	return key, nil
+	switch typed := key.(type) {
+	case *rsa.PrivateKey:
+		return typed, nil
+	default:
+		return nil, fmt.Errorf(
+			"unsupported type of private key: %T, "+
+				"expected to get RSA private key",
+			key,
+		)
+	}
 }

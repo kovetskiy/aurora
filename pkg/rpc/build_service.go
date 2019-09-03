@@ -53,7 +53,7 @@ func (service *BuildService) PushBuild(
 		return err
 	}
 
-	log.Debugf(build.Describe(), "upserting build")
+	log.Debugf(build.Describe(), "%s: upserting build", signer.Name)
 
 	_, err = service.builds.Upsert(bson.M{
 		"instance": build.Instance,
@@ -67,7 +67,7 @@ func (service *BuildService) PushBuild(
 	}
 
 	if build.Status == proto.PackageStatusSuccess {
-		log.Infof(build.Describe(), "publishing archive")
+		log.Infof(build.Describe(), "%s: publishing archive", signer.Name)
 		err = service.archives.Publish(storage.Archive{
 			Instance: build.Instance,
 			Package:  build.Package,
