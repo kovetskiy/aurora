@@ -21,7 +21,9 @@ COPY /etc/pacman.conf /etc/pacman.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 COPY /etc/passwd /etc/passwd
 COPY /etc/ssh/ssh_config /etc/ssh/ssh_config
+
 COPY /etc/sudoers.d/nobody /etc/sudoers.d/nobody
+RUN sed -ri 's/(nobody:.*):1:/\1::/' /etc/shadow
 
 COPY /run.sh /app/run.sh
 
