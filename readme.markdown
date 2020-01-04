@@ -12,3 +12,9 @@ Server = http://aur.reconquest.io/$repo
 
 - [ ] cleanup buffer
 - [ ] sign packages with gpg key
+
+# generate key
+
+1. Run `./generate-key`
+2. Follow the instructions
+3. Share the public part with me
