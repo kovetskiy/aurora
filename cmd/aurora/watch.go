@@ -14,12 +14,14 @@ import (
 
 func handleWatch(opts Options) error {
 	client := NewClient(opts.Address)
+	signer := NewSigner(opts.Key)
 
 	var response proto.ResponseGetBus
 	err := client.Call(
 		(*rpc.PackageService).GetBus,
 		proto.RequestGetBus{
-			Name: opts.Package,
+			Signature: signer.sign(),
+			Name:      opts.Package,
 		},
 		&response,
 	)
@@ -57,11 +59,17 @@ func handleWatch(opts Options) error {
 
 		switch message.Type {
 		case "status":
-			fmt.Printf("Status: %s\n", message.Data)
+			status := message.Data.(string)
+			fmt.Printf("Status: %s\n", status)
+			if opts.Wait {
+				if status == "success" || status == "failure" {
+					return nil
+				}
+			}
 		case "log":
 			fmt.Print(message.Data)
 		default:
-			log.Println("unhandled type of message: %q", message.Type)
+			log.Printf("unhandled type of message: %q", message.Type)
 		}
 	}
 

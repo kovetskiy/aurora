@@ -49,7 +49,7 @@ func NewAuthService(authorizedKeysDir string) (*AuthService, error) {
 			return nil, fmt.Errorf("unable to decode PEM block: %q", path)
 		}
 
-		key, err := x509.ParsePKCS1PublicKey(block.Bytes)
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
 			return nil, karma.Format(
 				err,
@@ -59,7 +59,7 @@ func NewAuthService(authorizedKeysDir string) (*AuthService, error) {
 
 		keys = append(keys, rsaKey{
 			signer: &signature.Signer{Name: name},
-			key:    key,
+			key:    key.(*rsa.PublicKey),
 		})
 	}
 

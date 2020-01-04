@@ -4,23 +4,25 @@ import (
 	"github.com/kovetskiy/aurora/pkg/signature"
 )
 
-var (
-	DefaultBusServerPort = 4242
-)
+var DefaultBusServerPort = 4242
 
 type RequestListPackages struct {
+	Signature *signature.Signature `json:"signature"`
 }
 
 type RequestGetPackage struct {
-	Name string `json:"name"`
+	Signature *signature.Signature `json:"signature"`
+	Name      string               `json:"name"`
 }
 
 type RequestGetLogs struct {
-	Name string `json:"name"`
+	Signature *signature.Signature `json:"signature"`
+	Name      string               `json:"name"`
 }
 
 type RequestGetBus struct {
-	Name string `json:"name"`
+	Signature *signature.Signature `json:"signature"`
+	Name      string               `json:"name"`
 }
 
 type RequestAddPackage struct {

@@ -15,11 +15,7 @@ import (
 	"github.com/reconquest/karma-go"
 )
 
-var (
-	ErrorUnauthorized = errors.New(
-		"you are not authorized to perform this action",
-	)
-)
+var ErrorUnauthorized = errors.New("you are not authorized to perform this action")
 
 // PackageService handles all interactions with packages, including:
 //
@@ -57,6 +53,11 @@ func (service *PackageService) ListPackages(
 	request *proto.RequestListPackages,
 	response *proto.ResponseListPackages,
 ) error {
+	signer := service.auth.Verify(request.Signature)
+	if signer == nil {
+		return ErrorUnauthorized
+	}
+
 	err := service.collection.Find(bson.M{}).All(&response.Packages)
 	if err != nil {
 		return karma.Format(
@@ -73,6 +74,11 @@ func (service *PackageService) GetPackage(
 	request *proto.RequestGetPackage,
 	response *proto.ResponseGetPackage,
 ) error {
+	signer := service.auth.Verify(request.Signature)
+	if signer == nil {
+		return ErrorUnauthorized
+	}
+
 	err := service.collection.Find(
 		bson.M{"name": request.Name},
 	).One(&response.Package)
@@ -95,6 +101,11 @@ func (service *PackageService) GetLogs(
 	request *proto.RequestGetLogs,
 	response *proto.ResponseGetLogs,
 ) error {
+	signer := service.auth.Verify(request.Signature)
+	if signer == nil {
+		return ErrorUnauthorized
+	}
+
 	var pkg proto.Package
 	err := service.collection.Find(
 		bson.M{"name": request.Name},
@@ -131,6 +142,11 @@ func (service *PackageService) GetBus(
 	request *proto.RequestGetBus,
 	response *proto.ResponseGetBus,
 ) error {
+	signer := service.auth.Verify(request.Signature)
+	if signer == nil {
+		return ErrorUnauthorized
+	}
+
 	var pkg proto.Package
 	err := service.collection.Find(
 		bson.M{"name": request.Name},
@@ -162,6 +178,11 @@ func (service *PackageService) AddPackage(
 	request *proto.RequestAddPackage,
 	response *proto.ResponseAddPackage,
 ) error {
+	signer := service.auth.Verify(request.Signature)
+	if signer == nil {
+		return ErrorUnauthorized
+	}
+
 	if !proto.IsValidPackageName(request.Name) {
 		return errors.New("invalid package name")
 	}

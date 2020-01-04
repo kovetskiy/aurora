@@ -1,0 +1,18 @@
+#!/bin/bash
+echo "enter your username for aurora: "
+read username
+openssl genrsa -out $username.key 2048
+
+echo
+echo
+echo "Your key is ready, share this data:"
+echo "========================"
+echo "id: $username"
+openssl rsa -in $username.key -outform PEM -pubout -out /dev/stdout 2>/dev/null
+echo "========================"
+
+echo
+echo "and do this: "
+echo
+echo "mkdir -p ~/.config/aurora/"
+echo "mv $username.key ~/.config/aurora/id_rsa"

@@ -9,11 +9,13 @@ import (
 
 func handleAdd(opts Options) error {
 	client := NewClient(opts.Address)
+	signer := NewSigner(opts.Key)
 
 	err := client.Call(
 		(*rpc.PackageService).AddPackage,
 		proto.RequestAddPackage{
-			Name: opts.Package,
+			Signature: signer.sign(),
+			Name:      opts.Package,
 		},
 		&proto.ResponseAddPackage{},
 	)

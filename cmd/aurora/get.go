@@ -9,23 +9,27 @@ import (
 
 	"github.com/kovetskiy/aurora/pkg/proto"
 	"github.com/kovetskiy/aurora/pkg/rpc"
+	"github.com/kovetskiy/aurora/pkg/signature"
 )
 
 func handleGet(opts Options) error {
 	client := NewClient(opts.Address)
+	signer := NewSigner(opts.Key)
 
 	if opts.Package != "" {
-		return handleGetPackage(client, opts.Package)
+		return handleGetPackage(client, opts.Package, signer.sign())
 	}
 
-	return handleListPackages(client)
+	return handleListPackages(client, signer.sign())
 }
 
-func handleListPackages(client *Client) error {
+func handleListPackages(client *Client, signature *signature.Signature) error {
 	var reply proto.ResponseListPackages
 	err := client.Call(
 		(*rpc.PackageService).ListPackages,
-		proto.RequestListPackages{},
+		proto.RequestListPackages{
+			Signature: signature,
+		},
 		&reply,
 	)
 	if err != nil {
@@ -35,12 +39,13 @@ func handleListPackages(client *Client) error {
 	return printPackages(reply.Packages...)
 }
 
-func handleGetPackage(client *Client, name string) error {
+func handleGetPackage(client *Client, name string, signature *signature.Signature) error {
 	var reply proto.ResponseGetPackage
 	err := client.Call(
 		(*rpc.PackageService).GetPackage,
 		proto.RequestGetPackage{
-			Name: name,
+			Signature: signature,
+			Name:      name,
 		},
 		&reply,
 	)

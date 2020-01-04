@@ -9,12 +9,14 @@ import (
 
 func handleLog(opts Options) error {
 	client := NewClient(opts.Address)
+	signer := NewSigner(opts.Key)
 
 	var response proto.ResponseGetLogs
 	err := client.Call(
 		(*rpc.PackageService).GetLogs,
 		proto.RequestGetLogs{
-			Name: opts.Package,
+			Signature: signer.sign(),
+			Name:      opts.Package,
 		},
 		&response,
 	)

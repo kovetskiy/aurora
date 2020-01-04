@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 
 	"github.com/docopt/docopt-go"
 	"github.com/reconquest/karma-go"
@@ -11,7 +12,7 @@ import (
 
 var (
 	version = "[manual build]"
-	usage   = "aurora " + version + `
+	usage   = "aurora " + version + os.ExpandEnv(`
 
 Aurora is a command line client for aurora daemon.
 
@@ -20,25 +21,26 @@ Usage:
   aurora [options] add <package>
   aurora [options] rm <package>
   aurora [options] log <package>
-  aurora [options] watch <package>
+  aurora [options] watch <package> [-w]
   aurora [options] whoami
   aurora -h | --help
   aurora --version
 
 Options:
-  get                           Query specified package or query a list of packages.
-  add                           Add a package to the queue.
-  remove                        Remove a package from the queue.
-  log                           Retrieve logs of a package.
-  watch                         Watch build process.
-  whoami                        Retrieves information about current using in the aurora.
-  -a --address <rpc>            Address of aurorad rpc server. [default: https://aurora.reconquest.io/rpc/]
-  -k --key <path>               Path to private RSA key. [default: aurora.key]
-  --i-use-insecure-address      By default, aurora doesn't allow to use http:// schema in address.
-                                 Use this flag to override this behavior.
-  -h --help                     Show this screen.
-  --version                     Show version.
-`
+  get                            Query specified package or query a list of packages.
+  add                            Add a package to the queue.
+  remove                         Remove a package from the queue.
+  log                            Retrieve logs of a package.
+  watch                          Watch build process.
+  whoami                         Retrieves information about current using in the aurora.
+  -a --address <rpc>             Address of aurorad rpc server. [default: https://aurora.reconquest.io/rpc/]
+  -k --key <path>                Path to private RSA key. [default: $HOME/.config/aurora/id_rsa]
+  --i-use-insecure-address       By default, aurora doesn't allow to use http:// schema in address.
+                                  Use this flag to override this behavior.
+  -w --wait                      Wait for a resulting status.
+  -h --help                      Show this screen.
+  --version                      Show version.
+`)
 )
 
 type (
@@ -53,6 +55,7 @@ type (
 		Package       string
 		Key           string
 		AllowInsecure bool `docopt:"--i-use-insecure-address"`
+		Wait          bool
 	}
 )
 
