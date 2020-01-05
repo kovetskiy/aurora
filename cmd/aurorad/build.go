@@ -26,17 +26,17 @@ const (
 	reArchiveName = `(?P<name>[a-z0-9][a-z0-9@\._+-]+)`
 	reArchiveVer  = `(?P<ver>[a-z0-9_.]+-[0-9]+)`
 	reArchiveArch = `(?P<arch>(i686|x86_64))`
-	reArchiveExt  = `(?P<ext>tar(.(gz|bz2|xz|lrz|lzo|sz))?)`
+	reArchiveExt  = `(?P<ext>tar(.(gz|bz2|xz|zst|lrz|lzo|sz))?)`
 
 	packagesDatabaseFile = "aurora.db.tar"
 )
 
-var (
-	reArchiveFilename = regexp.MustCompile(`^` + reArchiveTime +
+var reArchiveFilename = regexp.MustCompile(
+	`^` + reArchiveTime +
 		`\.` + reArchiveName +
 		`-` + reArchiveVer +
 		`-` + reArchiveArch +
-		`\.pkg\.` + reArchiveExt + `$`)
+		`\.pkg\.` + reArchiveExt + `$`,
 )
 
 const (
@@ -64,9 +64,7 @@ type build struct {
 	bus       *Bus
 }
 
-var (
-	dbLock = &sync.Mutex{}
-)
+var dbLock = &sync.Mutex{}
 
 func (build *build) String() string {
 	return build.pkg.Name
@@ -152,7 +150,6 @@ func (build *build) Process() {
 	}
 
 	build.updateStatus(proto.BuildStatusSuccess)
-
 }
 
 func (build *build) cleanup() error {

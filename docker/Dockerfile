@@ -18,6 +18,7 @@ RUN mkdir -p /app/build && \
 RUN chown -R nobody:nobody /root
 
 COPY /etc/pacman.conf /etc/pacman.conf
+COPY /etc/makepkg.conf /etc/makepkg.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 COPY /etc/passwd /etc/passwd
 COPY /etc/ssh/ssh_config /etc/ssh/ssh_config
