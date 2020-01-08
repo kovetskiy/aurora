@@ -1,7 +1,3 @@
-Server = http://mirror.adct.be/arch/$repo/os/$arch
-Server = http://archlinux.cu.be/$repo/os/$arch
-Server = http://arch.unixpeople.org/$repo/os/$arch
-Server = http://archlinux.honkgong.info/$repo/os/$arch
-Server = http://ftp.fau.de/archlinux/$repo/os/$arch
-Server = http://ftp.hosteurope.de/mirror/ftp.archlinux.org/$repo/os/$arc
-# Server = http://mirror.yandex.ru/archlinux/$repo/os/$arch
+Server = https://mirrors.eric.ovh/arch/$repo/os/$arch
+Server = https://mirrors.arnoldthebat.co.uk/archlinux/$repo/os/$arch
+Server = https://mirror.wormhole.eu/archlinux/$repo/os/$arch
