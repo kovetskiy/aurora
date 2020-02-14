@@ -68,7 +68,7 @@ func (cloud *Cloud) CreateContainer(
 	return created.ID, nil
 }
 
-func (cloud *Cloud) WaitContainer(name string) {
+func (cloud *Cloud) WaitContainer(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 	defer cancel()
 
@@ -78,16 +78,19 @@ func (cloud *Cloud) WaitContainer(name string) {
 	)
 
 	select {
-	case <-wait:
-		break
+	case data := <-wait:
+		if data.StatusCode != 0 {
+			return false, fmt.Errorf("exit code: %d", data.StatusCode)
+		}
+		return false, nil
 	case <-ctx.Done():
-		break
+		return true, nil
 	}
 }
 
-func (cloud *Cloud) FollowLogs(container string, send func(string)) error {
+func (cloud *Cloud) FollowLogs(ctx context.Context, container string, send func(string)) error {
 	reader, err := cloud.client.ContainerLogs(
-		context.Background(), container, types.ContainerLogsOptions{
+		ctx, container, types.ContainerLogsOptions{
 			ShowStdout: true,
 			ShowStderr: true,
 			Follow:     true,

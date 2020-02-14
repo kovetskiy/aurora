@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -378,27 +379,36 @@ func (build *build) runContainer() (string, error) {
 	build.log.Debug("building package")
 
 	routines := &sync.WaitGroup{}
-	routines.Add(1)
-	go func() {
-		defer routines.Done()
-		build.cloud.WaitContainer(container)
-	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	routines.Add(1)
 	go func() {
 		defer routines.Done()
-		build.cloud.FollowLogs(container, func(data string) {
+		build.cloud.FollowLogs(ctx, container, func(data string) {
 			build.bus.Publish(build.pkg.Name, data)
 		})
 	}()
 
+	timeout, err := build.cloud.WaitContainer(container)
+	if timeout {
+		err = errors.New("build timed out")
+	}
+
+	if err != nil {
+		cancel()
+	}
+
 	routines.Wait()
 
-	err = build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
-	if err != nil {
+	// enforce cancel to avoid goroutine leaks
+	cancel()
+
+	logErr := build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
+	if logErr != nil {
 		build.log.Error(
 			karma.Format(
-				err, "can't write logs for container %s", build.container,
+				logErr, "can't write logs for container %s", build.container,
 			),
 		)
 	}
@@ -408,5 +418,5 @@ func (build *build) runContainer() (string, error) {
 		build.container,
 	)
 
-	return container, nil
+	return container, err
 }
