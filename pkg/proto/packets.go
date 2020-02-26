@@ -28,6 +28,7 @@ type RequestGetBus struct {
 type RequestAddPackage struct {
 	Signature *signature.Signature `json:"signature"`
 	Name      string               `json:"name"`
+	CloneURL  string               `json:"clone_url,omitempty"`
 }
 
 type RequestRemovePackage struct {

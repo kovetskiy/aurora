@@ -16,6 +16,7 @@ func handleAdd(opts Options) error {
 		proto.RequestAddPackage{
 			Signature: signer.sign(),
 			Name:      opts.Package,
+			CloneURL:  opts.CloneURL,
 		},
 		&proto.ResponseAddPackage{},
 	)

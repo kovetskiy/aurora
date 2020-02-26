@@ -37,6 +37,7 @@ func (cloud *Cloud) CreateContainer(
 	bufferDir string,
 	containerName string,
 	packageName string,
+	cloneURL string,
 ) (string, error) {
 	config := &container.Config{
 		Image: cloud.BaseImage,
@@ -46,6 +47,7 @@ func (cloud *Cloud) CreateContainer(
 		Tty: true,
 		Env: []string{
 			fmt.Sprintf("AURORA_PACKAGE=%s", packageName),
+			fmt.Sprintf("AURORA_CLONE_URL=%s", cloneURL),
 		},
 		AttachStdout: true,
 		AttachStderr: true,

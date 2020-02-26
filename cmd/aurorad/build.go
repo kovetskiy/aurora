@@ -358,12 +358,14 @@ func (build *build) runContainer() (string, error) {
 		build.bufferDir,
 		build.container,
 		build.pkg.Name,
+		build.pkg.CloneURL,
 	)
 	if err != nil {
 		return "", karma.Format(
 			err, "can't create container",
 		)
 	}
+
 	build.log.Debugf(
 		"container %s has been created",
 		build.container,
