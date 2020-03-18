@@ -71,11 +71,19 @@ bus:
 
 # dir with authorized RSA public keys
 authorized_keys: "/etc/aurora/authorized_keys"
+
+# resources limitation for build containers
+resources:
+	cpu: 0 # fractional number of cpu shares to allow for single container, 0 = unlimited
 `
 
 type ConfigHistory struct {
 	Versions         int `yaml:"versions" required:"true"`
 	BuildsPerVersion int `yaml:"builds_per_version" required:"true"`
+}
+
+type ConfigResources struct {
+	CPU float64 `yaml:"cpu"`
 }
 
 type Config struct {
@@ -109,6 +117,7 @@ type Config struct {
 		Build string `yaml:"build" required:"true"`
 	} `required:"true"`
 
+	Resources         ConfigResources
 	AuthorizedKeysDir string `yaml:"authorized_keys" required:"true"`
 }
 

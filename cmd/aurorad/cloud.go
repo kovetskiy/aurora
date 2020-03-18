@@ -21,14 +21,16 @@ const (
 type Cloud struct {
 	client    *client.Client
 	BaseImage string
+	Resources ConfigResources
 }
 
-func NewCloud(baseImage string) (*Cloud, error) {
+func NewCloud(baseImage string, resources ConfigResources) (*Cloud, error) {
 	var err error
 
 	cloud := &Cloud{}
 	cloud.client, err = client.NewEnvClient()
 	cloud.BaseImage = baseImage
+	cloud.Resources = resources
 
 	return cloud, err
 }
@@ -57,6 +59,13 @@ func (cloud *Cloud) CreateContainer(
 		Binds: []string{
 			fmt.Sprintf("%s:/buffer", bufferDir),
 		},
+	}
+
+	if cloud.Resources.CPU > 0 {
+		hostConfig.Resources.CPUPeriod = 1000000
+		hostConfig.Resources.CPUQuota = int64(
+			float64(hostConfig.Resources.CPUPeriod) * cloud.Resources.CPU,
+		)
 	}
 
 	created, err := cloud.client.ContainerCreate(
