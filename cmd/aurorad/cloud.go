@@ -6,6 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -21,18 +24,47 @@ const (
 type Cloud struct {
 	client    *client.Client
 	BaseImage string
-	Resources ConfigResources
+
+	mutex     sync.Mutex
+	resources ConfigResources
+	threads   int
+	cpuNext   int
 }
 
-func NewCloud(baseImage string, resources ConfigResources) (*Cloud, error) {
+func NewCloud(baseImage string, resources ConfigResources, threads int) (*Cloud, error) {
 	var err error
 
 	cloud := &Cloud{}
 	cloud.client, err = client.NewEnvClient()
 	cloud.BaseImage = baseImage
-	cloud.Resources = resources
+	cloud.resources = resources
+
+	if threads == 0 {
+		threads = runtime.NumCPU()
+	}
+
+	cloud.threads = threads
 
 	return cloud, err
+}
+
+func (cloud *Cloud) getNextCPU() string {
+	if cloud.resources.CPU == 0 {
+		return ""
+	}
+
+	cloud.mutex.Lock()
+	defer cloud.mutex.Unlock()
+
+	start := cloud.cpuNext
+	end := start + cloud.resources.CPU - 1
+	cloud.cpuNext = (cloud.cpuNext + cloud.resources.CPU) % cloud.threads
+
+	if start == end {
+		return strconv.Itoa(start)
+	} else {
+		return fmt.Sprintf("%d-%d", start, end)
+	}
 }
 
 func (cloud *Cloud) CreateContainer(
@@ -61,11 +93,8 @@ func (cloud *Cloud) CreateContainer(
 		},
 	}
 
-	if cloud.Resources.CPU > 0 {
-		hostConfig.Resources.CPUPeriod = 1000000
-		hostConfig.Resources.CPUQuota = int64(
-			float64(hostConfig.Resources.CPUPeriod) * cloud.Resources.CPU,
-		)
+	if cloud.resources.CPU > 0 {
+		hostConfig.Resources.CpusetCpus = cloud.getNextCPU()
 	}
 
 	created, err := cloud.client.ContainerCreate(

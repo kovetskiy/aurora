@@ -61,7 +61,7 @@ func (proc *Processor) Init() error {
 		return err
 	}
 
-	proc.cloud, err = NewCloud(proc.config.BaseImage, proc.config.Resources)
+	proc.cloud, err = NewCloud(proc.config.BaseImage, proc.config.Resources, proc.config.Threads)
 	if err != nil {
 		return karma.Format(
 			err,

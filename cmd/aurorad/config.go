@@ -74,7 +74,7 @@ authorized_keys: "/etc/aurora/authorized_keys"
 
 # resources limitation for build containers
 resources:
-	cpu: 0 # fractional number of cpu shares to allow for single container, 0 = unlimited
+	cpu: 1 # number of cpus allowed per thread
 `
 
 type ConfigHistory struct {
@@ -83,7 +83,7 @@ type ConfigHistory struct {
 }
 
 type ConfigResources struct {
-	CPU float64 `yaml:"cpu"`
+	CPU int `yaml:"cpu"`
 }
 
 type Config struct {
