@@ -24,9 +24,9 @@ import (
 
 const (
 	reArchiveTime = `(?P<time>\d+)`
-	reArchiveName = `(?P<name>[a-z0-9][a-z0-9@\._+-]+)`
-	reArchiveVer  = `(?P<ver>[a-z0-9_.]+-[0-9]+)`
-	reArchiveArch = `(?P<arch>(i686|x86_64))`
+	reArchiveName = `(?P<name>[a-zA-Z0-9][a-zA-Z0-9@\._+-]+)`
+	reArchiveVer  = `(?P<ver>[a-zA-Z0-9_.:]+-[0-9]+)`
+	reArchiveArch = `(?P<arch>(i686|x86_64|any))`
 	reArchiveExt  = `(?P<ext>tar(.(gz|bz2|xz|zst|lrz|lzo|sz))?)`
 
 	packagesDatabaseFile = "aurora.db.tar"

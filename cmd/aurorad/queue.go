@@ -21,6 +21,14 @@ func processQueue(storage *mgo.Collection, config *Config) error {
 		)
 	}
 
+	err = processor.Cleanup()
+	if err != nil {
+		return karma.Format(
+			err,
+			"unable to cleanup storage",
+		)
+	}
+
 	go processor.Process()
 
 	infof("starting bus server at %s", config.Bus.Listen)

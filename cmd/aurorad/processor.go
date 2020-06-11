@@ -150,7 +150,7 @@ func spawnThreadpool(instance string, size int) *threadpool.ThreadPool {
 		capacity = runtime.NumCPU()
 	}
 
-	pool := threadpool.New()
+	pool := threadpool.New(size)
 	pool.Spawn(capacity)
 
 	infof(
