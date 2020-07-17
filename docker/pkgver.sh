@@ -11,6 +11,11 @@ cat >> PKGBUILD.pkgver <<FUNC
 		echo -n "\$pkgver" > /app/build/$AURORA_PACKAGE/pkgver
 		exit 0
 	}
+
+	package() {
+		echo -n "\$pkgver" > /app/build/$AURORA_PACKAGE/pkgver
+		exit 0
+	}
 FUNC
 
 chown nobody: PKGBUILD.pkgver
