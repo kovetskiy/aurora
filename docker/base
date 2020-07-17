@@ -32,3 +32,5 @@ mercurial
 glew
 wget
 go
+rustup
+cargo

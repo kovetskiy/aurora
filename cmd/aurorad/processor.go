@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -83,6 +84,16 @@ func (proc *Processor) Init() error {
 }
 
 func (proc *Processor) Process() {
+	loops := sync.WaitGroup{}
+	loops.Add(1)
+
+	go proc.loopBuild(loops.Done)
+
+	loops.Wait()
+}
+
+func (proc *Processor) loopBuild(done func()) {
+	defer done()
 	for {
 		pkg := proto.Package{}
 
@@ -189,7 +200,7 @@ func prepareDirs(
 		bufferDir,
 		config.LogsDir,
 	} {
-		err := os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0o755)
 		if err != nil {
 			return "", "", "", karma.Format(
 				err, "can't mkdir %s", dir,

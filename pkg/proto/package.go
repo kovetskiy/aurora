@@ -10,4 +10,5 @@ type Package struct {
 	Instance string    `bson:"instance" json:"instance"`
 	Date     time.Time `bson:"date" json:"date"`
 	Priority int       `bson:"priority" json:"priority"`
+	Failures int       `bson:"failures" json:"failures"`
 }

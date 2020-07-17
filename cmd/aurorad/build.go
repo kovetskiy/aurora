@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,19 @@ import (
 	"github.com/reconquest/lexec-go"
 	"github.com/reconquest/regexputil-go"
 )
+
+const (
+	FAILURES_TO_REMOVE = 3
+)
+
+var ErrPkgverNotChanged = errors.New("pkgver not changed")
+
+type traceWriter struct{ logger lorg.Logger }
+
+func (writer traceWriter) Write(buffer []byte) (int, error) {
+	writer.logger.Trace(string(buffer))
+	return len(buffer), nil
+}
 
 const (
 	reArchiveTime = `(?P<time>\d+)`
@@ -71,6 +85,17 @@ func (build *build) String() string {
 	return build.pkg.Name
 }
 
+func (build *build) removePackage() {
+	err := build.storage.Remove(bson.M{"name": build.pkg.Name})
+	if err != nil {
+		build.log.Error(
+			karma.Format(
+				err, "unable to remove package",
+			),
+		)
+	}
+}
+
 func (build *build) updateStatus(status proto.BuildStatus) {
 	build.pkg.Status = status.String()
 	build.pkg.Instance = build.instance
@@ -108,14 +133,32 @@ func (build *build) Process() {
 
 	build.cleanup()
 
+	oldstatus := build.pkg.Status
+
 	build.pkg.Date = time.Now()
 	build.updateStatus(proto.BuildStatusProcessing)
 
-	archive, err := build.build()
+	archive, err := build.build(oldstatus)
 	if err != nil {
+		if err == ErrPkgverNotChanged {
+			build.log.Infof("pkgver not changed, skipping; pkgver=%v", build.pkg.Version)
+			build.updateStatus(proto.BuildStatusSuccess)
+			return
+		}
+
 		build.log.Error(err)
 
+		build.pkg.Failures++
 		build.updateStatus(proto.BuildStatusFailure)
+
+		if build.pkg.Failures >= FAILURES_TO_REMOVE {
+			build.log.Warningf(
+				"package failed %d times, removing it from the database",
+				build.pkg.Failures,
+			)
+			build.removePackage()
+		}
+
 		return
 	}
 
@@ -150,6 +193,7 @@ func (build *build) Process() {
 		return
 	}
 
+	build.pkg.Failures = 0
 	build.updateStatus(proto.BuildStatusSuccess)
 }
 
@@ -281,18 +325,16 @@ func (build *build) repoRemove(path string) error {
 	return nil
 }
 
-func (build *build) build() (string, error) {
+func (build *build) build(oldstatus string) (string, error) {
 	defer build.shutdown()
 
 	var err error
 
 	build.container = build.pkg.Name + "-" + fmt.Sprint(time.Now().Unix())
 
-	build.ID, err = build.runContainer()
+	build.ID, err = build.start(oldstatus)
 	if err != nil {
-		return "", karma.Format(
-			err, "can't run container for building package",
-		)
+		return "", err
 	}
 
 	archives, err := filepath.Glob(
@@ -351,7 +393,7 @@ func (build *build) shutdown() {
 	build.cloud.client.Close()
 }
 
-func (build *build) runContainer() (string, error) {
+func (build *build) start(oldstatus string) (string, error) {
 	build.log.Debugf("creating container %s", build.container)
 
 	container, err := build.cloud.CreateContainer(
@@ -376,6 +418,18 @@ func (build *build) runContainer() (string, error) {
 		return "", karma.Format(
 			err, "can't start container",
 		)
+	}
+
+	pkgver, err := build.getVersion(container)
+	if err != nil {
+		return "", karma.Format(
+			err,
+			"unable to get pkgver",
+		)
+	}
+
+	if pkgver == pkgver && oldstatus != proto.BuildStatusFailure.String() {
+		return "", ErrPkgverNotChanged
 	}
 
 	build.log.Debug("building package")
@@ -421,4 +475,32 @@ func (build *build) runContainer() (string, error) {
 	)
 
 	return container, err
+}
+
+func (build *build) getVersion(container string) (string, error) {
+	err := build.cloud.Exec(
+		build.log, container, []string{"/app/pkgver.sh"}, nil,
+	)
+	if err != nil {
+		return "", karma.Format(err, "pkgver.sh failed")
+	}
+
+	path := fmt.Sprintf("%s/%s/pkgver", build.bufferDir, build.pkg.Name)
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", karma.Format(
+			err,
+			"unable to read file after pkgver: %s", path,
+		)
+	}
+
+	err = os.Remove(path)
+	if err != nil {
+		return "", karma.Format(
+			err,
+			"unable to remove pkgver file",
+		)
+	}
+
+	return string(contents), nil
 }

@@ -1,7 +1,6 @@
 CACHE = 1
 
 local:
-	docker pull archlinux/base
 	docker build -t aurora . --build-arg CACHE=$(CACHE)
 
 remote:

@@ -14,6 +14,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/kovetskiy/lorg"
 	"github.com/reconquest/karma-go"
 )
 
@@ -172,14 +174,6 @@ func (cloud *Cloud) StartContainer(container string) error {
 	return nil
 }
 
-func (cloud *Cloud) Query(container string) ([]interface{}, error) {
-	// what is the point of this method?
-	// @kovetskiy
-	// some leftovers after hastur?
-	result := []interface{}{}
-	return result, nil
-}
-
 func (cloud *Cloud) DestroyContainer(container string) error {
 	err := cloud.client.ContainerRemove(
 		context.Background(), container,
@@ -194,18 +188,21 @@ func (cloud *Cloud) DestroyContainer(container string) error {
 	return nil
 }
 
-func (cloud *Cloud) Exec(container string, command []string) error {
+func (cloud *Cloud) Exec(logger lorg.Logger, container string, command, env []string) error {
 	exec, err := cloud.client.ContainerExecCreate(
 		context.Background(), container,
 		types.ExecConfig{
-			Cmd: command,
+			Cmd:          command,
+			Env:          env,
+			AttachStdout: true,
+			AttachStderr: true,
 		},
 	)
 	if err != nil {
 		return err
 	}
 
-	err = cloud.client.ContainerExecStart(
+	response, err := cloud.client.ContainerExecAttach(
 		context.Background(), exec.ID,
 		types.ExecStartCheck{},
 	)
@@ -213,16 +210,22 @@ func (cloud *Cloud) Exec(container string, command []string) error {
 		return err
 	}
 
+	writer := traceWriter{logger: logger}
+	_, err = stdcopy.StdCopy(writer, writer, response.Reader)
+	if err != nil {
+		return karma.Format(err, "unable to read stdout of exec/attach")
+	}
+
 	return nil
 }
 
 func (cloud *Cloud) WriteLogs(
-	logsDir string, container string, packageName string,
+	logsDir, container, packageName string,
 ) error {
 	logfile, err := os.OpenFile(
 		filepath.Join(logsDir, packageName),
 		os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
-		0644,
+		0o644,
 	)
 	if err != nil {
 		return err
