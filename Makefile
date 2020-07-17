@@ -39,8 +39,8 @@ release@aurorad: clean dist@aurorad
 	@echo :: reloading daemon
 	@$(ORGALORG) -C 'systemctl daemon-reload'
 	@echo :: starting services
-	@$(ORGALORG) -C 'systemctl start aurora aurora-web'
-	@$(ORGALORG) -C 'systemctl status aurora aurora-web'
+	@$(ORGALORG) -C 'PAGER=cat systemctl start aurora aurora-web'
+	@$(ORGALORG) -C 'PAGER=cat systemctl status aurora aurora-web'
 
 clean:
 	rm -rf dist
