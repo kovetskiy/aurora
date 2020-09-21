@@ -25,7 +25,7 @@ func handleAdd(opts Options) error {
 		return err
 	}
 
-	fmt.Println("package has been queued")
+	fmt.Println("Package has been queued")
 
 	return nil
 }

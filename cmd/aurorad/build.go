@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,10 +30,16 @@ const (
 
 var ErrPkgverNotChanged = errors.New("pkgver not changed")
 
-type traceWriter struct{ logger lorg.Logger }
+type execWriter struct {
+	logger  lorg.Logger
+	publish func(string)
+}
 
-func (writer traceWriter) Write(buffer []byte) (int, error) {
+func (writer *execWriter) Write(buffer []byte) (int, error) {
 	writer.logger.Trace(string(buffer))
+	if writer.publish != nil {
+		writer.publish(strings.TrimRight(string(buffer), "\n \t") + "\n")
+	}
 	return len(buffer), nil
 }
 
@@ -396,6 +403,8 @@ func (build *build) shutdown() {
 func (build *build) start(oldstatus string) (string, error) {
 	build.log.Debugf("creating container %s", build.container)
 
+	build.bus.Publish(build.pkg.Name, "builder: Creating container for makepkg\n")
+
 	container, err := build.cloud.CreateContainer(
 		build.bufferDir,
 		build.container,
@@ -421,6 +430,8 @@ func (build *build) start(oldstatus string) (string, error) {
 		)
 	}
 
+	build.bus.Publish(build.pkg.Name, "builder: Retrieving PKGVER\n")
+
 	pkgver, err := build.getVersion(container)
 	if err != nil {
 		return "", karma.Format(
@@ -430,10 +441,17 @@ func (build *build) start(oldstatus string) (string, error) {
 	}
 
 	if build.pkg.Version == pkgver && oldstatus != proto.BuildStatusFailure.String() {
+		build.bus.Publish(build.pkg.Name, "Builder: PKGVER is not changed")
 		return "", ErrPkgverNotChanged
 	}
 
+	build.bus.Publish(
+		build.pkg.Name,
+		fmt.Sprintf("Builder: PKGVER is %q (was %q)\n", pkgver, build.pkg.Version),
+	)
+
 	build.log.Debug("building package")
+	build.bus.Publish(build.pkg.Name, "builder: Starting build\n")
 
 	build.WaitRun(container)
 
@@ -446,6 +464,8 @@ func (build *build) start(oldstatus string) (string, error) {
 		)
 	}
 
+	build.bus.Publish(build.pkg.Name, "builder: Build finished\n")
+
 	build.log.Debugf(
 		"container %s has been stopped",
 		build.container,
@@ -456,7 +476,9 @@ func (build *build) start(oldstatus string) (string, error) {
 
 func (build *build) getVersion(container string) (string, error) {
 	err := build.cloud.Exec(
-		context.Background(), build.log, container, []string{"/app/pkgver.sh"}, nil,
+		context.Background(), build.log, func(log string) {
+			build.bus.Publish(build.pkg.Name, "pkgver: "+log)
+		}, container, []string{"/app/pkgver.sh"}, nil,
 	)
 	if err != nil {
 		return "", karma.Format(err, "pkgver.sh failed")
@@ -484,7 +506,10 @@ func (build *build) getVersion(container string) (string, error) {
 
 func (build *build) run(ctx context.Context, container string) error {
 	err := build.cloud.Exec(
-		ctx, build.log, container, []string{"/app/run.sh"}, nil,
+		ctx, build.log, func(log string) {
+			build.bus.Publish(build.pkg.Name, "makepkg: "+log)
+		},
+		container, []string{"/app/run.sh"}, nil,
 	)
 	if err != nil {
 		return karma.Format(err, "run.sh failed")
@@ -497,22 +522,16 @@ func (build *build) WaitRun(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 	defer cancel()
 
-	routines := &sync.WaitGroup{}
-	routines.Add(1)
-	go func() {
-		defer routines.Done()
-		build.cloud.FollowLogs(ctx, name, func(data string) {
-			build.bus.Publish(build.pkg.Name, data)
-		})
-	}()
-
 	result := make(chan error, 1)
+	routines := &sync.WaitGroup{}
 	routines.Add(1)
 	go func() {
 		defer routines.Done()
 
 		result <- build.run(ctx, name)
 	}()
+
+	routines.Wait()
 
 	select {
 	case err := <-result:

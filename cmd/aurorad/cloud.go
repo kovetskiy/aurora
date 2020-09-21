@@ -172,6 +172,7 @@ func (cloud *Cloud) DestroyContainer(container string) error {
 func (cloud *Cloud) Exec(
 	ctx context.Context,
 	logger lorg.Logger,
+	publish func(string),
 	container string,
 	command,
 	env []string,
@@ -197,7 +198,8 @@ func (cloud *Cloud) Exec(
 		return err
 	}
 
-	writer := traceWriter{logger: logger}
+	writer := &execWriter{logger: logger, publish: publish}
+
 	_, err = stdcopy.StdCopy(writer, writer, response.Reader)
 	if err != nil {
 		return karma.Format(err, "unable to read stdout of exec/attach")

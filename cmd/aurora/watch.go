@@ -66,8 +66,13 @@ func handleWatch(opts Options) error {
 					return nil
 				}
 			}
+
 		case "log":
 			fmt.Print(message.Data)
+
+		case "empty_channel":
+			fmt.Println("Joined to an empty channel")
+
 		default:
 			log.Printf("unhandled type of message: %q", message.Type)
 		}

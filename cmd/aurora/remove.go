@@ -23,7 +23,7 @@ func handleRemove(opts Options) error {
 		return err
 	}
 
-	fmt.Println("package has been removed from the queue")
+	fmt.Println("Package has been removed from the queue")
 
 	return nil
 }
