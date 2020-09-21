@@ -29,7 +29,8 @@ Usage:
 Options:
   get                         Query specified package or query a list of packages.
   add                         Add a package to the queue.
-   --clone-url <url>          Use custom clone URL of the package.
+   -c --clone-url <url>       Use custom clone URL of the package.
+   -s --subdir <dir>          Use subdir for in a custom clone URL.
   remove                      Remove a package from the queue.
   log                         Retrieve logs of a package.
   watch                       Watch build process.
