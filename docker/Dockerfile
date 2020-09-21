@@ -7,6 +7,7 @@ ARG CACHE=1
 
 COPY /etc/pacman.conf /etc/pacman.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
+COPY /etc/pacman.d/gnupg/gpg.conf /etc/pacman.d/gnupg/gpg.conf
 
 RUN pacman -Sy --noconfirm archlinux-keyring \
     && gpg --refresh-keys \
