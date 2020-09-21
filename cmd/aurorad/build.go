@@ -429,7 +429,7 @@ func (build *build) start(oldstatus string) (string, error) {
 		)
 	}
 
-	if pkgver == pkgver && oldstatus != proto.BuildStatusFailure.String() {
+	if build.pkg.Version == pkgver && oldstatus != proto.BuildStatusFailure.String() {
 		return "", ErrPkgverNotChanged
 	}
 
