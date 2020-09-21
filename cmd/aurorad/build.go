@@ -236,7 +236,7 @@ func (build *build) cleanup() error {
 	}
 
 	versions := []string{}
-	for version, _ := range builds {
+	for version := range builds {
 		versions = append(versions, version)
 	}
 
@@ -401,6 +401,7 @@ func (build *build) start(oldstatus string) (string, error) {
 		build.container,
 		build.pkg.Name,
 		build.pkg.CloneURL,
+		build.pkg.Subdir,
 	)
 	if err != nil {
 		return "", karma.Format(

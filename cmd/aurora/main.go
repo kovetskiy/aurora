@@ -58,6 +58,7 @@ type (
 		AllowInsecure bool `docopt:"--i-use-insecure-address"`
 		Wait          bool
 		CloneURL      string `docopt:"--clone-url"`
+		Subdir        string `docopt:"--subdir"`
 	}
 )
 

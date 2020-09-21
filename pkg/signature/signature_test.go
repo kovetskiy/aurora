@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewSignature_ReturnsValidSign(t *testing.T) {
+func TestNew_ReturnsValidSign(t *testing.T) {
 	test := assert.New(t)
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -16,7 +16,7 @@ func TestNewSignature_ReturnsValidSign(t *testing.T) {
 		panic(err)
 	}
 
-	sign := NewSignature(key)
+	sign := New(key)
 
 	test.NoError(sign.Verify(&key.PublicKey))
 }
@@ -29,7 +29,7 @@ func TestSignature_Verify_ReturnsFalseIfCorrupted(t *testing.T) {
 		panic(err)
 	}
 
-	sign := NewSignature(key)
+	sign := New(key)
 
 	sign.Time += 1
 

@@ -45,7 +45,7 @@ Options:
 
 var logger = lorg.NewLog()
 
-func bootstrap(args map[string]interface{}) {
+func bootstrap() {
 	logger.SetFormat(
 		lorg.NewFormat(
 			"${time} ${level:[%s]:right:short} ${prefix}%s",
@@ -63,7 +63,7 @@ func main() {
 		panic(err)
 	}
 
-	bootstrap(args)
+	bootstrap()
 
 	infof("starting up aurorad %s", version)
 

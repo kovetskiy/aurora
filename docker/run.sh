@@ -4,6 +4,10 @@ set -euo pipefail
 
 cd /app/build/$AURORA_PACKAGE
 
+if [[ "${AURORA_SUBDIR:-}" ]]; then
+	cd "./$AURORA_SUBDIR"
+fi
+
 buildtime=$(date +%s)
 
 sudo -u nobody -E makepkg --syncdeps --noconfirm

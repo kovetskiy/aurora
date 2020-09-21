@@ -29,6 +29,7 @@ type RequestAddPackage struct {
 	Signature *signature.Signature `json:"signature"`
 	Name      string               `json:"name"`
 	CloneURL  string               `json:"clone_url,omitempty"`
+	Subdir    string               `json:"subdir,omitempty"`
 }
 
 type RequestRemovePackage struct {

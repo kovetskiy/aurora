@@ -17,6 +17,7 @@ func handleAdd(opts Options) error {
 			Signature: signer.sign(),
 			Name:      opts.Package,
 			CloneURL:  opts.CloneURL,
+			Subdir:    opts.Subdir,
 		},
 		&proto.ResponseAddPackage{},
 	)
