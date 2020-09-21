@@ -14,7 +14,8 @@ RUN pacman -Sy --noconfirm archlinux-keyring \
    && pacman-key --init \
     && pacman-key --populate archlinux \
     && pacman-key --refresh-keys \
-    && gpg --recv-keys $(cat /keys)
+    && true
+    #&& gpg --recv-keys $(cat /keys)
 RUN pacman -Sy --noconfirm $(cat /base)
 
 RUN mkdir -p /app/build && \
