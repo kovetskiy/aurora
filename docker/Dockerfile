@@ -9,8 +9,8 @@ COPY /etc/pacman.conf /etc/pacman.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 
 RUN pacman -Sy --noconfirm archlinux-keyring \
-    && gpg --refresh-keys &&
-    && pacman-key --init \
+    && gpg --refresh-keys \
+   && pacman-key --init \
     && pacman-key --populate archlinux \
     && pacman-key --refresh-keys \
     && gpg --recv-keys $(cat /keys)
