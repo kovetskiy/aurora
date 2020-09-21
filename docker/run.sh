@@ -7,7 +7,6 @@ cd /app/build/$AURORA_PACKAGE
 if [[ "${AURORA_SUBDIR:-}" ]]; then
     echo ":: changing directory to $AURORA_SUBDIR"
 	cd "./$AURORA_SUBDIR"
-    ls -lah
 fi
 
 buildtime=$(date +%s)

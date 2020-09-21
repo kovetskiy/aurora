@@ -17,3 +17,8 @@ fi
 
 echo ":: Cloning $AURORA_CLONE_URL for $AURORA_PACKAGE (subdir: ${AURORA_SUBDIR:-.})"
 sudo -u nobody git clone "${AURORA_CLONE_URL}" .
+
+if [[ "${AURORA_SUBDIR:-}" ]]; then
+    echo ":: changing directory to $AURORA_SUBDIR"
+	cd "./$AURORA_SUBDIR"
+fi
