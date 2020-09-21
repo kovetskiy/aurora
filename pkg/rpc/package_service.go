@@ -189,9 +189,11 @@ func (service *PackageService) AddPackage(
 
 	err := service.collection.Insert(
 		proto.Package{
-			Name:   request.Name,
-			Status: proto.BuildStatusQueued.String(),
-			Date:   time.Now(),
+			Name:     request.Name,
+			Status:   proto.BuildStatusQueued.String(),
+			Date:     time.Now(),
+			CloneURL: request.CloneURL,
+			Subdir:   request.Subdir,
 		},
 	)
 
