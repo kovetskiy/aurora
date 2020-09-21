@@ -9,13 +9,7 @@ COPY /etc/pacman.conf /etc/pacman.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 COPY /etc/pacman.d/gnupg/gpg.conf /etc/pacman.d/gnupg/gpg.conf
 
-RUN pacman -Sy --noconfirm archlinux-keyring \
-    && gpg --refresh-keys \
-   && pacman-key --init \
-    && pacman-key --populate archlinux \
-    && pacman-key --refresh-keys \
-    && true
-    #&& gpg --recv-keys $(cat /keys)
+#RUN gpg --recv-keys $(cat /keys)
 RUN pacman -Sy --noconfirm $(cat /base)
 
 RUN mkdir -p /app/build && \
