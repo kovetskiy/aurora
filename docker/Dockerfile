@@ -8,7 +8,7 @@ ARG CACHE=1
 COPY /etc/pacman.conf /etc/pacman.conf
 COPY /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist
 
-RUN gpg --recv-keys $(cat /keys)
+RUN pacman -Sy archlinux-keyring && pacman-key --refresh-keys && gpg --recv-keys $(cat /keys)
 RUN pacman -Sy --noconfirm $(cat /base)
 
 RUN mkdir -p /app/build && \
