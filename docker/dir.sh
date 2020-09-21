@@ -15,6 +15,5 @@ if [[ ! "${AURORA_CLONE_URL:-}" ]]; then
     AURORA_CLONE_URL=https://aur.archlinux.org/$AURORA_PACKAGE.git
 fi
 
-echo ":: Cloning $AURORA_CLONE_URL for $AURORA_CLONE_URL (subdir:
-${AURORA_SUBDIR:-.})"
+echo ":: Cloning $AURORA_CLONE_URL for $AURORA_PACKAGE (subdir: ${AURORA_SUBDIR:-.})"
 sudo -u nobody git clone "${AURORA_CLONE_URL}" .
