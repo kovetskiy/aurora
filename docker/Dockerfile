@@ -28,6 +28,9 @@ COPY /etc/ssh/ssh_config /etc/ssh/ssh_config
 COPY /etc/sudoers.d/nobody /etc/sudoers.d/nobody
 RUN sed -ri 's/(nobody:.*):1:/\1::/' /etc/shadow
 
+RUN rustup install stable
+RUN rustup default stable
+
 COPY /run.sh /app/run.sh
 COPY /pkgver.sh /app/pkgver.sh
 COPY /dir.sh /app/dir.sh

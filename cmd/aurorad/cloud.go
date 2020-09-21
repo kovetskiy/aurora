@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -112,26 +111,6 @@ func (cloud *Cloud) CreateContainer(
 	return created.ID, nil
 }
 
-func (cloud *Cloud) WaitContainer(name string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
-	defer cancel()
-
-	wait, _ := cloud.client.ContainerWait(
-		ctx, name,
-		container.WaitConditionNotRunning,
-	)
-
-	select {
-	case data := <-wait:
-		if data.StatusCode != 0 {
-			return false, fmt.Errorf("exit code: %d", data.StatusCode)
-		}
-		return false, nil
-	case <-ctx.Done():
-		return true, nil
-	}
-}
-
 func (cloud *Cloud) FollowLogs(ctx context.Context, container string, send func(string)) error {
 	reader, err := cloud.client.ContainerLogs(
 		ctx, container, types.ContainerLogsOptions{
@@ -190,9 +169,15 @@ func (cloud *Cloud) DestroyContainer(container string) error {
 	return nil
 }
 
-func (cloud *Cloud) Exec(logger lorg.Logger, container string, command, env []string) error {
+func (cloud *Cloud) Exec(
+	ctx context.Context,
+	logger lorg.Logger,
+	container string,
+	command,
+	env []string,
+) error {
 	exec, err := cloud.client.ContainerExecCreate(
-		context.Background(), container,
+		ctx, container,
 		types.ExecConfig{
 			Cmd:          command,
 			Env:          env,
@@ -205,7 +190,7 @@ func (cloud *Cloud) Exec(logger lorg.Logger, container string, command, env []st
 	}
 
 	response, err := cloud.client.ContainerExecAttach(
-		context.Background(), exec.ID,
+		ctx, exec.ID,
 		types.ExecStartCheck{},
 	)
 	if err != nil {

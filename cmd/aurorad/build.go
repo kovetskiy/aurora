@@ -435,31 +435,7 @@ func (build *build) start(oldstatus string) (string, error) {
 
 	build.log.Debug("building package")
 
-	routines := &sync.WaitGroup{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	routines.Add(1)
-	go func() {
-		defer routines.Done()
-		build.cloud.FollowLogs(ctx, container, func(data string) {
-			build.bus.Publish(build.pkg.Name, data)
-		})
-	}()
-
-	timeout, err := build.cloud.WaitContainer(container)
-	if timeout {
-		err = errors.New("build timed out")
-	}
-
-	if err != nil {
-		cancel()
-	}
-
-	routines.Wait()
-
-	// enforce cancel to avoid goroutine leaks
-	cancel()
+	build.WaitRun(container)
 
 	logErr := build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
 	if logErr != nil {
@@ -480,7 +456,7 @@ func (build *build) start(oldstatus string) (string, error) {
 
 func (build *build) getVersion(container string) (string, error) {
 	err := build.cloud.Exec(
-		build.log, container, []string{"/app/pkgver.sh"}, nil,
+		context.Background(), build.log, container, []string{"/app/pkgver.sh"}, nil,
 	)
 	if err != nil {
 		return "", karma.Format(err, "pkgver.sh failed")
@@ -504,4 +480,48 @@ func (build *build) getVersion(container string) (string, error) {
 	}
 
 	return string(contents), nil
+}
+
+func (build *build) run(ctx context.Context, container string) error {
+	err := build.cloud.Exec(
+		ctx, build.log, container, []string{"/app/run.sh"}, nil,
+	)
+	if err != nil {
+		return karma.Format(err, "run.sh failed")
+	}
+
+	return nil
+}
+
+func (build *build) WaitRun(name string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+	defer cancel()
+
+	routines := &sync.WaitGroup{}
+	routines.Add(1)
+	go func() {
+		defer routines.Done()
+		build.cloud.FollowLogs(ctx, name, func(data string) {
+			build.bus.Publish(build.pkg.Name, data)
+		})
+	}()
+
+	result := make(chan error, 1)
+	routines.Add(1)
+	go func() {
+		defer routines.Done()
+
+		result <- build.run(ctx, name)
+	}()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	case <-ctx.Done():
+		cancel()
+		return false, <-result
+	}
 }
