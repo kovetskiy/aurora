@@ -5,7 +5,7 @@ VERSION = $(shell printf "%s.%s" \
 	$$(git rev-parse --short HEAD) \
 )
 
-GOFLAGS = GO111MODULE=off CGO_ENABLED=0
+GOFLAGS = GO111MODULE=on CGO_ENABLED=0
 
 ORGALORG = orgalorg -u root -o $(HOST) -y
 
