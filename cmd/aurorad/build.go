@@ -432,7 +432,10 @@ func (build *build) start(oldstatus string) (string, error) {
 
 	build.bus.Publish(build.pkg.Name, "builder: Retrieving PKGVER\n")
 
+	pkgverAt := time.Now()
 	pkgver, err := build.getVersion(container)
+	build.pkg.PkgverTime = time.Since(pkgverAt)
+
 	if err != nil {
 		return "", karma.Format(
 			err,
@@ -453,7 +456,13 @@ func (build *build) start(oldstatus string) (string, error) {
 	build.log.Debug("building package")
 	build.bus.Publish(build.pkg.Name, "builder: Starting build\n")
 
-	build.WaitRun(container)
+	runAt := time.Now()
+	_, err = build.WaitRun(container)
+	build.pkg.BuildTime = time.Since(runAt)
+
+	if err != nil {
+		return "", err
+	}
 
 	build.pkg.Version = pkgver
 

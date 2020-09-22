@@ -62,16 +62,20 @@ func handleGetPackage(client *Client, name string, signature *signature.Signatur
 
 func printPackages(pkgs ...*proto.Package) error {
 	tab := tabwriter.NewWriter(os.Stdout, 1, 2, 3, ' ', 0)
-	fmt.Fprintf(tab, "NAME\tSTATUS\tVERSION\tDATE\n")
+	fmt.Fprintf(tab, "NAME\tSTATUS\tVERSION\tDATE\tVER TIME\tBUILD TIME\tPRIORITY\tFAILURES\n")
 
 	for _, pkg := range pkgs {
 		fmt.Fprintf(
 			tab,
-			"%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",
 			pkg.Name,
 			pkg.Status,
 			pkg.Version,
 			pkg.Date.Format(time.RFC3339),
+			pkg.PkgverTime.String(),
+			pkg.BuildTime.String(),
+			pkg.Priority,
+			pkg.Failures,
 		)
 	}
 
