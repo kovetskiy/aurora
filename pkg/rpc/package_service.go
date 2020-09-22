@@ -194,6 +194,7 @@ func (service *PackageService) AddPackage(
 			Date:     time.Now(),
 			CloneURL: request.CloneURL,
 			Subdir:   request.Subdir,
+			Priority: request.Priority,
 		},
 	)
 

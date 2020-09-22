@@ -31,6 +31,7 @@ Options:
   add                         Add a package to the queue.
    -c --clone-url <url>       Use custom clone URL of the package.
    -s --subdir <dir>          Use subdir for in a custom clone URL.
+   -p --priority <n>          Use specified priority for the package. [default: 0]
   remove                      Remove a package from the queue.
   log                         Retrieve logs of a package.
   watch                       Watch build process.
@@ -59,7 +60,8 @@ type (
 		AllowInsecure bool `docopt:"--i-use-insecure-address"`
 		Wait          bool
 		CloneURL      string `docopt:"--clone-url"`
-		Subdir        string `docopt:"--subdir"`
+		Subdir        string
+		Priority      int
 	}
 )
 

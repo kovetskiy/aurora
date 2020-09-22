@@ -18,6 +18,7 @@ func handleAdd(opts Options) error {
 			Name:      opts.Package,
 			CloneURL:  opts.CloneURL,
 			Subdir:    opts.Subdir,
+			Priority:  opts.Priority,
 		},
 		&proto.ResponseAddPackage{},
 	)

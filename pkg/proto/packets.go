@@ -30,6 +30,7 @@ type RequestAddPackage struct {
 	Name      string               `json:"name"`
 	CloneURL  string               `json:"clone_url,omitempty"`
 	Subdir    string               `json:"subdir,omitempty"`
+	Priority  int                  `json:"priority"`
 }
 
 type RequestRemovePackage struct {

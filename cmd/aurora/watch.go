@@ -77,6 +77,4 @@ func handleWatch(opts Options) error {
 			log.Printf("unhandled type of message: %q", message.Type)
 		}
 	}
-
-	return nil
 }
