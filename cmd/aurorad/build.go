@@ -158,7 +158,7 @@ func (build *build) Process() {
 		build.pkg.Failures++
 		build.updateStatus(proto.BuildStatusFailure)
 
-		if build.pkg.Failures >= FAILURES_TO_REMOVE {
+		if build.pkg.Failures >= FAILURES_TO_REMOVE && build.pkg.Priority == 0 {
 			build.log.Warningf(
 				"package failed %d times, removing it from the database",
 				build.pkg.Failures,
@@ -454,6 +454,8 @@ func (build *build) start(oldstatus string) (string, error) {
 	build.bus.Publish(build.pkg.Name, "builder: Starting build\n")
 
 	build.WaitRun(container)
+
+	build.pkg.Version = pkgver
 
 	logErr := build.cloud.WriteLogs(build.logsDir, build.container, build.pkg.Name)
 	if logErr != nil {
