@@ -192,7 +192,10 @@ func (cloud *Cloud) Exec(
 
 	response, err := cloud.client.ContainerExecAttach(
 		ctx, exec.ID,
-		types.ExecStartCheck{},
+		types.ExecConfig{
+			AttachStdout: true,
+			AttachStderr: true,
+		},
 	)
 	if err != nil {
 		return err
